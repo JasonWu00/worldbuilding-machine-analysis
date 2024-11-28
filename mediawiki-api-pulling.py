@@ -30,31 +30,45 @@ def get_pages_by_category(api_endpoint, category):
     data = response.json()
     return data
 
-def scrape_one_page(pagelink, pagename):
+def scrape_one_page(pagelink, pagename, highlight_sections=False):
     r = requests.get(pagelink, headers={"User-Agent": USERAGENT})
     soup = BeautifulSoup(r.content, 'html.parser')
     #print(soup)
     #print("="*20)
-    all_pars = soup.find_all(['p', 'ul', 'th', 'td', 'h1', 'h3', 'h4', 'h5'])
+    all_pars = soup.find_all(['p', 'ul', 'th', 'td', 'h1', 'h3', 'h4', 'h5', 'pre'])
     
     f = open(pagename+".txt", 'w') # creates file if not exists, otherwise opens with overwite
     start_writing = False
     for para in all_pars:
-        if para.find(['th', 'td', 'ul']) is None and para.find_parent(['ul', 'tr']) is None: # no subtables or sublists
+        if para.find(['th', 'td', 'ul']) is None and para.find_parent(['ul', 'td']) is None: # no subtables or sublists
             paratext = para.get_text().strip()
             if "Create account" in paratext or "Personal tools" in paratext: break
-            if paratext is not None:
+            if paratext is not None and paratext != "":
                 #print(paratext)
                 if start_writing: f.write('\n\n')
-                f.write(paratext)
+                if highlight_sections and para.name == "h3":
+                    f.write("=="+paratext.replace('\n\n', '\n')+"==")
+                else:
+                    f.write(paratext.replace('\n\n', '\n'))
                 start_writing = True
         #if para.find(['li']) is not None: # tere is a sublist; don't print it
             #print(para.decompose().get_text().strip())
     f.close()
+    #print(f"finished scraping text from page: {pagename}")
+
+replace_keys_dict = {
+    '/': '-',
+    ':': '-',
+    '?': ''
+}
 
 main_cat_json = get_pages_by_category(API_ENDPOINT, MAIN_CATEGORY)
 for page in main_cat_json["query"]["categorymembers"]:
     print(f"id: {page['pageid']}; title: {page['title']}")
     pagelink = WIKI_URL + "/wiki/" + page['title'].replace(' ', '_')
-    pagename = SCRAPED_FILES_PATH+page["title"].replace('/', '-')
-    scrape_one_page(pagelink, pagename)
+    pagename = page["title"]
+    for key in replace_keys_dict:
+        pagename = pagename.replace(key, replace_keys_dict[key])
+    #scrape_one_page(pagelink, SCRAPED_FILES_PATH+pagename)
+#print("scraping the talk page")
+scrape_one_page(DISCUSSION_PAGE, SCRAPED_FILES_PATH+"Category talk-Five Epochs of War and Peace", highlight_sections=True)
