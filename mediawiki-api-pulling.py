@@ -1,11 +1,11 @@
 """
 This file will make API calls to the MediaWiki API to get all the pages I need.
 """
-import os
+#import os
 import requests
 # static variables that lead to where the source material is located at.
-from secret_variables import *
 from bs4 import BeautifulSoup
+from secret_variables import *
 
 API_ENDPOINT = WIKI_URL + "/w/api.php"
 SCRAPED_FILES_PATH = "pages/"
@@ -33,59 +33,68 @@ def get_pages_by_category(api_endpoint, category):
         "User-Agent": USERAGENT
         # Wikipedia requires a user agent string for Python script requests
     }
-    response = requests.get(url=api_endpoint, params=params, headers=headers)
+    response = requests.get(url=api_endpoint, params=params, headers=headers, timeout=10)
     print(response)
     data = response.json()
     return data
 
 def scrape_one_page(pagelink, pagename, highlight_sections=False):
-    r = requests.get(pagelink, headers={"User-Agent": USERAGENT})
+    """
+    Grab one MediaWiki page and scrape its text content into a .txt file.
+    """
+    r = requests.get(pagelink, headers={"User-Agent": USERAGENT}, timeout=10)
     soup = BeautifulSoup(r.content, 'html.parser')
     #print(soup)
     #print("="*20)
     all_pars = soup.find_all(['p', 'ul', 'th', 'td', 'h1', 'h3', 'h4', 'h5', 'pre'])
-    
-    f = open(pagename+".txt", 'w') # creates file if not exists, otherwise opens with overwite
-    start_writing = False
-    for para in all_pars:
-        if para.find(['th', 'td', 'ul']) is None and para.find_parent(['ul', 'td']) is None: # no subtables or sublists
-            paratext = para.get_text().strip()
-            if "Create account" in paratext or "Personal tools" in paratext: break
-            if paratext is not None and paratext != "":
-                #print(paratext)
-                if start_writing: f.write('\n\n')
-                if highlight_sections and para.name == "h3":
-                    f.write("=\n")
-                f.write(paratext.replace('\n\n', '\n'))
-                start_writing = True
-        #if para.find(['li']) is not None: # tere is a sublist; don't print it
-            #print(para.decompose().get_text().strip())
-    f.close()
-    #print(f"finished scraping text from page: {pagename}")
+
+    with open(pagename+".txt", 'w', encoding='utf-8') as f:
+        # creates file if not exists, otherwise opens with overwite
+        start_writing = False
+
+        for para in all_pars:
+            if para.find(['th', 'td', 'ul']) is None and para.find_parent(['ul', 'td']) is None:
+                # no subtables or sublists
+                paratext = para.get_text().strip()
+                if "Create account" in paratext or "Personal tools" in paratext:
+                    break
+                if paratext is not None and paratext != "":
+                    #print(paratext)
+                    if start_writing:
+                        f.write('\n\n')
+                    if highlight_sections and para.name == "h3":
+                        f.write("=\n")
+                    f.write(paratext.replace('\n\n', '\n'))
+                    start_writing = True
+            #if para.find(['li']) is not None: # tere is a sublist; don't print it
+                #print(para.decompose().get_text().strip())
+        #print(f"finished scraping text from page: {pagename}")
 
 def parse_discussions(cat_talk_route, notes_path):
-    f = open(cat_talk_route, 'r')
+    """
+    Parse the category talk page into individual topics.
+    """
+    f = open(cat_talk_route, 'r', encoding='utf-8')
     topics = f.read().split("=")
     for topic in topics: #write each topic into separate txtfile
         paragraphs = topic.split('\n\n')
         header = paragraphs[0]
-        for key in replace_keys_dict:
-            header = header.replace(key, replace_keys_dict[key])
-        f = open(notes_path+header[1:]+".txt", 'w') # skips bad first char
-        filestring = "" # write everything to here, then clean up before posting
-        for paragraph in paragraphs:
-            filestring += paragraph
-            filestring += '\n\n'
-        f.write(filestring.strip())
-        f.close()
+        for replace_key in replace_keys_dict.items():
+            header = header.replace(replace_key, replace_keys_dict[replace_key])
+        with open(notes_path+header[1:]+".txt", 'w', encoding='utf-8') as f: # skips bad first char
+            filestring = "" # write everything to here, then clean up before posting
+            for paragraph in paragraphs:
+                filestring += paragraph
+                filestring += '\n\n'
+            f.write(filestring.strip())
 
 main_cat_json = get_pages_by_category(API_ENDPOINT, MAIN_CATEGORY)
 for page in main_cat_json["query"]["categorymembers"]:
     print(f"id: {page['pageid']}; title: {page['title']}")
     pagelink = WIKI_URL + "/wiki/" + page['title'].replace(' ', '_')
     pagename = page["title"]
-    for key in replace_keys_dict:
-        pagename = pagename.replace(key, replace_keys_dict[key])
+    for replace_key in replace_keys_dict.items():
+        pagename = pagename.replace(replace_key, replace_keys_dict[replace_key])
     #scrape_one_page(pagelink, SCRAPED_FILES_PATH+pagename)
 #print("scraping the talk page")
 scrape_one_page(DISCUSSION_PAGE, SCRAPED_FILES_PATH+CAT_TALK_FILENAME, highlight_sections=True)
