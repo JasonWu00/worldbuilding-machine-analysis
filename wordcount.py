@@ -14,10 +14,8 @@ def parsefolder(path):
             count += parsefolder(path+filename+"/")
         else:
             with open(path + filename, 'r', encoding='utf-8') as f:
-                texts = f.read().strip().split(" ")
-                for text in texts:
-                    if text.isalnum():
-                        count += 1
+                # no need to parse out wiki formatting b/c I already did that during api calling
+                count += len(f.read().strip().split(" "))
     return count
 
 mastercount = parsefolder(SCRAPED_FILES_PATH)
