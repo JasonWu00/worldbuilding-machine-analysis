@@ -27,7 +27,7 @@ def get_pages_by_category(api_endpoint, category):
         "format": "json",
         "list": "categorymembers",
         "cmtitle": category,
-        "cmlimit": 60 # 59 pages I have to parse thru
+        "cmlimit": 100 # number to be increased in the future if I get that many files
     }
     headers = {
         "User-Agent": USERAGENT
@@ -68,34 +68,36 @@ def scrape_one_page(pagelink, pagename, highlight_sections=False):
                     start_writing = True
             #if para.find(['li']) is not None: # tere is a sublist; don't print it
                 #print(para.decompose().get_text().strip())
-        #print(f"finished scraping text from page: {pagename}")
+        print(f"finished scraping text from page: {pagename}")
 
 def parse_discussions(cat_talk_route, notes_path):
     """
     Parse the category talk page into individual topics.
     """
-    f = open(cat_talk_route, 'r', encoding='utf-8')
-    topics = f.read().split("=")
-    for topic in topics: #write each topic into separate txtfile
-        paragraphs = topic.split('\n\n')
-        header = paragraphs[0]
-        for replace_key in replace_keys_dict.items():
-            header = header.replace(replace_key, replace_keys_dict[replace_key])
-        with open(notes_path+header[1:]+".txt", 'w', encoding='utf-8') as f: # skips bad first char
-            filestring = "" # write everything to here, then clean up before posting
-            for paragraph in paragraphs:
-                filestring += paragraph
-                filestring += '\n\n'
-            f.write(filestring.strip())
+    with open(cat_talk_route, 'r', encoding='utf-8') as f:
+        topics = f.read().split("=")
+        for topic in topics: #write each topic into separate txtfile
+            paragraphs = topic.split('\n\n')
+            header = paragraphs[0]
+            for replace_key, replacement in replace_keys_dict.items():
+                header = header.replace(replace_key, replacement)
+            with open(notes_path+header[1:]+".txt", 'w', encoding='utf-8') as f: # skips bad first char
+                filestring = "" # write everything to here, then clean up before posting
+                for paragraph in paragraphs:
+                    filestring += paragraph
+                    filestring += '\n\n'
+                f.write(filestring.strip())
 
 main_cat_json = get_pages_by_category(API_ENDPOINT, MAIN_CATEGORY)
 for page in main_cat_json["query"]["categorymembers"]:
     print(f"id: {page['pageid']}; title: {page['title']}")
     pagelink = WIKI_URL + "/wiki/" + page['title'].replace(' ', '_')
     pagename = page["title"]
-    for replace_key in replace_keys_dict.items():
-        pagename = pagename.replace(replace_key, replace_keys_dict[replace_key])
-    #scrape_one_page(pagelink, SCRAPED_FILES_PATH+pagename)
+    for replace_key, replacement in replace_keys_dict.items():
+        #print(replace_key)
+        #if replace_key in pagename:
+            pagename = pagename.replace(replace_key, replacement)
+    scrape_one_page(pagelink, SCRAPED_FILES_PATH+pagename)
 #print("scraping the talk page")
 scrape_one_page(DISCUSSION_PAGE, SCRAPED_FILES_PATH+CAT_TALK_FILENAME, highlight_sections=True)
 parse_discussions(SCRAPED_FILES_PATH+CAT_TALK_FILENAME+".txt", NOTES_PATH)
