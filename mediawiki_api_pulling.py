@@ -148,7 +148,7 @@ def getallpageids():
     ## Parameters
     None.
     ## Returns
-    Output: a list of page IDs.
+    a list of page IDs.
     """
     params = {
             "action": "query",
