@@ -1,6 +1,6 @@
 """
-This file will make API calls to the MediaWiki API, using hidden variables for obfuscation,
-to produce a set of pandas DataFrames that can then be used for analysis elsewhere.
+This file contains functions for API calls to the MediaWiki API, using hidden variables for
+obfuscation.
 
 Some variables from secret_variables are obfuscated because I am not yet ready
 to be revealing to absolutely everyone what I have written yet.
@@ -14,11 +14,12 @@ import secret_variables
 
 API_ENDPOINT = secret_variables.WIKI_URL + "/w/api.php"
 SCRAPED_FILES_PATH = "pages/"
+DATASETS_PATH = "datasets/"
 NOTES_PATH = "pages/notes/"
 
 replace_keys_dict = {
     '/': '-',
-    ':': ' -',
+    ':': ' - ',
     '?': '',
     '\"': '\''
 }
@@ -26,6 +27,25 @@ replace_keys_dict = {
 def get_pages_by_category(api_endpoint: str, category: str):
     """
     Fetch all pages based on a given category.
+
+    ## Parameters
+    api_endpoint: an API endpoint; see the name.    
+    category: a MediaWiki category to search through.
+    ## Returns
+    a raw JSON of all pages in the given category (see the raw docstring for formatting):    
+    {    
+        batchcomplete: ""    
+        query: {    
+            categorymembers: [    
+                {    
+                    pageid: int,    
+                    ns: 0,    
+                    title: pagename,    
+                }    
+                (repeat for other pages)    
+            ]     
+        }    
+    }
     """
     params = {
         "action": "query",
@@ -46,6 +66,14 @@ def get_pages_by_category(api_endpoint: str, category: str):
 def scrape_one_page(pagelink, pagename, highlight_sections=False):
     """
     Grab one MediaWiki page and scrape its text content into a .txt file.
+
+    ## Parameters:
+    pagelink: a URL to a given MediaWiki page.    
+    pagename: path + name for the local .txt file.    
+    highlight_sections: default False; marks topic sections in the category discussions\
+    page by separating them with a special character that does not appear in main text bodies.
+    ## Returns
+    One .txt file at the indicated path with the indicated name.
     """
     r = requests.get(pagelink, headers={"User-Agent": secret_variables.USERAGENT}, timeout=10)
     soup = BeautifulSoup(r.content, 'html.parser')
@@ -61,53 +89,104 @@ def scrape_one_page(pagelink, pagename, highlight_sections=False):
             if para.find(['th', 'td', 'ul']) is None and para.find_parent(['ul', 'td']) is None:
                 # no subtables or sublists
                 paratext = para.get_text().strip()
+                #print(paratext)
+
                 if "Create account" in paratext or "Personal tools" in paratext:
+                    # This significes that we went past the main body of text
                     break
                 if paratext is not None and paratext != "":
+                    # do not write empty paras (leads to unnecessary amount of newlines)
                     #print(paratext)
                     if start_writing:
                         f.write('\n\n')
                     if highlight_sections and para.name == "h3":
+                        # Special handling procedure for the category discussion page
                         f.write("=\n")
+                        # special delimiter character which does not show up
+                        # in the discussions file plaintext, to be used for later processing
                     f.write(paratext.replace('\n\n', '\n'))
                     start_writing = True
             #if para.find(['li']) is not None: # tere is a sublist; don't print it
                 #print(para.decompose().get_text().strip())
-        print(f"finished scraping text from page: {pagename}")
+        print(f"finished scraping text into page: {pagename}")
 
-def parse_discussions(cat_talk_route, notes_path):
+    # going back to clean up something
+    with open(pagename+".txt", 'r+', encoding='utf-8') as f:
+        filebody = f.read()
+        f.seek(0)
+        # the first line is a repeat of the second
+        # the last line contains junk text on categories
+        # this splits the paratext into a list, drops said junk data,
+        # then recombines them
+        # I could probably find a better way to do it later
+        # but this hackjob will have to do
+        paras = filebody.split("\n\n")[1:]
+        #print(paras[0:2])
+        if secret_variables.CAT_TALK_FILENAME[15:] in paras[-1]:
+            paras = paras[:-1]
+        filebody = "\n\n".join(paras)
+        f.write(filebody)
+        f.truncate()
+        print(f"finished dropping first and last line from page: {pagename}")
+
+NOTES_IDS_START = 999
+
+def parse_discussions(cat_talk_route: str, notes_path: str):
     """
     Parse the category talk page into individual topics.
 
     The talk page contains a number of topic blocks separated by this formatting:
-    ====
-    <br>
-    ====
-    This function divides the raw discussion text using these delimiters.
+
+    \=\=\=\=
+    \<br>
+    \=\=\=\=
+
+    This function divides the raw discussion text into a list of topics using these delimiters.
+
+    To those looking at the raw docstring: the forward slashes exist to make the docstrong format
+    correct on VScode and others.
+
+    ## Parameters
+    cat_talk_route: local path to the category talk page.    
+    notes_path: local path to a folder where individual topic .txts will go.
+    ## Returns
+    a number of .txt files, one per topic in the discussion page, at the notes_path.\
+    Each txt filename takes the format of filename-pageid.txt, with pageid taking up 4 chars.
     """
     with open(cat_talk_route, 'r', encoding='utf-8') as f:
         topics = f.read().split("=")
+        topics_counter = NOTES_IDS_START
         for topic in topics: #write each topic into separate txtfile
-            paragraphs = topic.split('\n\n')
-            header = paragraphs[0]
-            for replace_key, replacement in replace_keys_dict.items():
-                header = header.replace(replace_key, replacement)
-            with open(notes_path+header[1:]+".txt", 'w', encoding='utf-8') as f: # skips first char
-                filestring = "" # write everything to here, then clean up before posting
-                for paragraph in paragraphs:
-                    filestring += paragraph
-                    filestring += '\n\n'
-                f.write(filestring.strip())
+            if topics_counter != NOTES_IDS_START:
+                paragraphs = topic.split('\n\n')
+                header = paragraphs[0]
+                for replace_key, replacement in replace_keys_dict.items():
+                    header = header.replace(replace_key, replacement)
+                with open(notes_path+header[1:]+f"-NOTES-{topics_counter:04}.txt",
+                        'w', encoding='utf-8') as n: # skips first char
+                    filestring = "" # write everything to here, then clean up before posting
+                    for paragraph in paragraphs:
+                        filestring += paragraph
+                        filestring += '\n\n'
+                    n.write(filestring.strip())
+                    print(f"Wrote discussion notes to file location {notes_path+header[1:]}-NOTES-1{topics_counter}.txt")
+            topics_counter+=1
 
 def purge_folders(path, recursive=False):
     """
-    Deletes every text file I scraped beforehand so that I can discard discussion topics
-    and pages no longer part of the work.
+    Deletes every text file previously generated. Meant to be used immediately before scraping
+    additional pages to delete text files for pages or topics that no longer exist.
 
     Sometimes I remove topics and pages from the webpages I scrape. Without this function,
     old pages and discussion topics get left behind in the folders. They interfere in
     accurate analysis and previously had to be manually deleted. I don't feel like checking
     which ones need to be deleted every time so here's the blanket option.
+
+    ## Parameters
+    path: local file path to all generated .txt files.    
+    recursive: default False; determines if the function will also purge subfolders.
+    ## Returns
+    none.
     """
     for filename in os.listdir(path):
         filepath = os.path.join(path, filename)
@@ -121,29 +200,43 @@ def purge_folders(path, recursive=False):
 
 def scrapecycle():
     """
-    Basically a main() function.
+    Carries out a "web scrape cycle".
+    - Delete existing .txt files
+    - Get via API call all pages belonging the obfuscated main category
+    - Run the scrape_one_page() function on each page to pull their HTML data
+    and store the data in a text file at the given directory
+    - Run a special set of instructions to scrape then parse a long discussions page that
+    requires its own procedure.
+
+    ## Parameters
+    None.
+    ## Returns
+    A number of .txt files in the /notes folder, which is also kept hidden for now.
+    Text files names take the format pagename-pageid.txt, with pageid taking up 4 chars.
     """
     purge_folders(SCRAPED_FILES_PATH, recursive=True)
     main_cat_json = get_pages_by_category(API_ENDPOINT, secret_variables.MAIN_CATEGORY)
     #print(main_cat_json)
     for page in main_cat_json["query"]["categorymembers"]:
-        print(f"id: {page['pageid']}; title: {page['title']}")
+        #print(f"id: {page['pageid']}; title: {page['title']}")
         pagelink = secret_variables.WIKI_URL + "/wiki/" + page['title'].replace(' ', '_')
         pagename = page["title"]
+        pageid = page["pageid"]
         for replace_key, replacement in replace_keys_dict.items():
             #print(replace_key)
             #if replace_key in pagename:
             pagename = pagename.replace(replace_key, replacement)
-        scrape_one_page(pagelink, SCRAPED_FILES_PATH+pagename)
+        scrape_one_page(pagelink, SCRAPED_FILES_PATH+pagename+"-"+f"{pageid:04}")
     #print("scraping the talk page")
     scrape_one_page(secret_variables.DISCUSSION_PAGE,
                     SCRAPED_FILES_PATH+secret_variables.CAT_TALK_FILENAME,
                     highlight_sections=True)
     parse_discussions(SCRAPED_FILES_PATH+secret_variables.CAT_TALK_FILENAME+".txt", NOTES_PATH)
+    os.remove(SCRAPED_FILES_PATH+secret_variables.CAT_TALK_FILENAME+".txt")
 
-def getallpageids():
+def getallpageids() -> list[int]:
     """
-    Gets all page IDs for the secret main category.
+    Gets all page IDs for the main category.
 
     ## Parameters
     None.
@@ -169,8 +262,8 @@ def getallpageids():
     #print(pageids)
     return pageids
 
-pageids = getallpageids()
-print(pageids)
+#pageids = getallpageids()
+#print(pageids)
 
 def get_categories(pageid: int):
     """
@@ -209,21 +302,24 @@ def get_categories(pageid: int):
     # print(pageids)
     #print(json.dumps(data, indent=2))
     cats = data["query"]["pages"][str(pageid)]["categories"][1:] # bypass junk, get to categories
-    output = []
-    for cat in cats:
-        # All categories take the form "Category:catname"
-        # Drop the useless prefix
-        output.append(cat["title"][9:])
-    return output
+
+    # All categories take the form "Category:catname"
+    # Drop the useless prefix
+    print(f"API called category data for page {pageid}")
+    return [cat["title"][9:] for cat in cats]
 
 # for pageid in pageids:
 #     get_categories(pageid)
-print(get_categories(567))
+# print(get_categories(567))
 
 # get detailed data on each page, including revisions.
 def get_revision_history(pageid: int):
     """
-    Given a page ID, return a list of detailed revision data.
+    Given a page ID, return a list of detailed revision data. This includes:
+    - Revision ID
+    - Timestamp
+    - User-provided comment (might or might not be useful)
+    - minor: whether this was marked as a minor edit or not
 
     ## Parameters:
     pageid: an ID.
@@ -247,32 +343,32 @@ def get_revision_history(pageid: int):
     }
     response = requests.get(url=API_ENDPOINT, params=params, headers=headers, timeout=10)
     data = response.json()
-    #print(json.dumps(data, indent=2))
+    print(json.dumps(data, indent=2))
     revisions = data["query"]["pages"][str(pageid)]["revisions"]
     output = []
     for revision in revisions:
         output.append(dict((key, revision[key])
                            for key in ["revid", "timestamp", "comment"]))
-        if "minor" in revision: # this key only sometimes appears thus I must handle it manually
-            output[-1]["minor"] = True
-        else:
-            output[-1]["minor"] = False
+        output[-1]["minor"] = "minor" in revision
     return output
     #print("END")
 
-for rev in get_revision_history(567):
-    print(rev)
-for rev in get_revision_history(429):
-    print(rev)
+# for rev in get_revision_history(567):
+#     print(rev)
+# for rev in get_revision_history(429):
+#     print(rev)
 
-def get_revision_diffs(revid: int):
+def get_revision_deets(revid: int):
     """
-    Given a revision page ID, returns the number of bytes added or subtracted compared to prev rev.
+    Given a revision page ID, returns the "details" for the revision. This includes:
+    - the number of bytes added or subtracted compared to prev rev
+    - the page ID it corresponds to
 
     ## Parameters:
     revid: an ID.
     ## Output:
-    an integer of the size difference, calculated using the size of the prev and current revisions.
+    A list in the form of [size difference (int), page ID (int)]    
+    Size difference is alculated using the size of the prev and current revisions.
     The diffsize field is misleading so I did not use it.
     """
     params = {
@@ -280,7 +376,7 @@ def get_revision_diffs(revid: int):
         "format": "json",
         "fromrev": f"{revid}",
         "torelative": "prev",
-        "prop": "diffsize|size|ids",
+        "prop": "diffsize|size|ids|title|comment|timestamp",
         #"rvprop": "ids|timestamp|flags|comment|user",
         #"rvlimit": 100,
         #"cmtitle": secret_variables.MAIN_CATEGORY,
@@ -293,31 +389,76 @@ def get_revision_diffs(revid: int):
     response = requests.get(url=API_ENDPOINT, params=params, headers=headers, timeout=10)
     data = response.json()
     print(json.dumps(data, indent=2))
-    tosize = data["compare"]["tosize"]
-    if "fromsize" in data["compare"]:
-        fromsize = data["compare"]["fromsize"]
-    else:
-        fromsize = 0
-    return tosize - fromsize
+    return data["compare"]
+    # tosize = data["compare"]["tosize"]
+    # if "fromsize" in data["compare"]:
+    #     fromsize = data["compare"]["fromsize"]
+    # else:
+    #     fromsize = 0
+    # return [tosize - fromsize, data["compare"]["toid"],]
 
-print(get_revision_diffs(3030), 0) # expected result: 0
-print(get_revision_diffs(3029), 6904) # expected result: 6904
-print(get_revision_diffs(2630), 4029) # expected result: 4029
-print(get_revision_diffs(2311), 6040) # expected result: 6040
-print(get_revision_diffs(3278), 427) # expected result: 427
+# print(get_revision_deets(3030), 0) # expected result: 0
+# print(get_revision_deets(3029), 6904) # expected result: 6904
+# print(get_revision_deets(2630), 4029) # expected result: 4029
+# print(get_revision_deets(2311), 6240) # expected result: 6240
+# print(get_revision_deets(3278), 427) # expected result: 427
+
+def get_pageinfo(pageid: int):
+    """
+    Given a page ID, pulls some info not present in other functions.
+
+    ## Parameters:
+    pageid: an ID.
+    ## Output:
+    a json object with some extended info on a given page. These info already exist\
+    in other function returns.
+    """
+    params = {
+        "action": "query",
+        "format": "json",
+        "pageids": f"{pageid}",
+        "prop": "info",
+        #"rvprop": "ids|timestamp|flags|comment|user",
+        #"rvlimit": 100,
+        #"cmtitle": secret_variables.MAIN_CATEGORY,
+        #"cmlimit": 100 # doesn't work with revisions; only 1 page at a time
+    }
+    headers = {
+        "User-Agent": secret_variables.USERAGENT
+        # Wikipedia requires a user agent string for Python script requests
+    }
+    response = requests.get(url=API_ENDPOINT, params=params, headers=headers, timeout=10)
+    data = response.json()
+    print(json.dumps(data, indent=2))
+    return data["query"]["pages"][str(pageid)]
+    # revisions = data["query"]["pages"][str(pageid)]["revisions"]
+    # output = []
+    # for revision in revisions:
+    #     output.append(dict((key, revision[key])
+    #                        for key in ["revid", "timestamp", "comment"]))
+    #     output[-1]["minor"] = "minor" in revision
+    # return output
 
 plans = """
 Data to collect at a future date:
 
 Info on each page:
-- PageID (use in place of title for obfuscation)
+- Page ID (use in place of title for obfuscation)
 - Type (tale, fake wikipedia entry, or discussion note)
 - (Maybe separate them into two tables?)
 - Text count
 
 Revisions:
 - Revision page ID
+- Page ID
 - Timestamp
 - is marked as "minor" or not
 - Size of revision
+
+ML predicted values (use Hugging Face models? do it in a py notebook?)
+- Generalized topic categories (history, science, politics, etc)
+- Specialized topic categories (To be determined)
+- Sentiments (positive/negative?)
+
+Author selected values (see the above)
 """
