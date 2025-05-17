@@ -6,7 +6,7 @@ Some variables from secret_variables are obfuscated because I am not yet ready
 to be revealing to absolutely everyone what I have written yet.
 """
 import os
-import json
+#import json
 import requests
 # static variables that lead to where the source material is located at.
 from bs4 import BeautifulSoup
@@ -132,7 +132,7 @@ def scrape_one_page(pagelink, pagename, highlight_sections=False):
 NOTES_IDS_START = 999
 
 def parse_discussions(cat_talk_route: str, notes_path: str):
-    """
+    r"""
     Parse the category talk page into individual topics.
 
     The talk page contains a number of topic blocks separated by this formatting:
@@ -471,7 +471,7 @@ def get_pagesize(pageid: int):
     print(f"Returning page size for page {pageid}")
     return data["query"]["pages"][str(pageid)]["revisions"][0]["size"]
 
-plans = """
+PLANS = """
 Data to collect at a future date:
 
 Info on each page: GOT
