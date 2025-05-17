@@ -43,7 +43,8 @@ for file in filelist:
 pages_df = pd.DataFrame({"Page ID": pageids,
                          "Other Category": altcats,
                          "Word Count": wordcounts_main,})
-pages_df.to_csv(DATASETS_PATH+"main_pages_df.csv")
+pages_df["Page Size (Bytes)"] = pages_df["Page ID"].apply(mediawiki_api_calls.get_pagesize)
+pages_df.to_csv(DATASETS_PATH+"main_pages_df.csv", index=False)
 
 notesids = []
 notes_filelist = os.listdir(NOTES_PATH)
@@ -82,9 +83,42 @@ notes_df = pd.DataFrame({"Page ID": notesids,
                          "Other Categories": notetypes,
                          "Word Count": noteswordcounts,
                          "Timestamp": notesdts})
-notes_df.to_csv(DATASETS_PATH+"discussion_notes_df.csv")
+notes_df.to_csv(DATASETS_PATH+"discussion_notes_df.csv", index=False)
 
 print(mediawiki_api_calls.get_revision_history(583))
 
-# for pageid in pageids:
-#     revhistory = mediawiki_api_calls.get_revision_history(pageid)
+revid_list = []
+minor_list = []
+for pageid in pageids:
+    hist = mediawiki_api_calls.get_revision_history(pageid)
+    for rev in hist:
+        revid_list.append(rev["revid"]) #"revision id"
+        minor_list.append(rev["minor"])
+
+notes = """
+Revisions:
+- Revision page ID
+- Page ID
+- Timestamp
+- is marked as "minor" or not
+- Size of revision
+"""
+pageid_list = []
+diffsize_list = []
+timestamp_list = []
+revsize_list = []
+for revid in revid_list:
+    rev_deets = mediawiki_api_calls.get_revision_deets(revid)
+    pageid_list.append(rev_deets["toid"])
+    # timestamp raw looks like: 2025-04-13T05:14:42Z
+    timestamp_list.append(pd.to_datetime(rev_deets["totimestamp"]).tz_localize(None))
+    revsize_list.append(rev_deets["tosize"] - rev_deets["fromsize"] if "fromsize" in rev_deets else 0)
+
+revs_df = pd.DataFrame({
+    "Revision ID": revid_list,
+    "Page ID": pageid_list,
+    "Timestamp": timestamp_list,
+    "Is Minor": minor_list,
+    "Revision Size (Bytes)": revsize_list
+})
+revs_df.to_csv(DATASETS_PATH+"revisions_df.csv", index=False)

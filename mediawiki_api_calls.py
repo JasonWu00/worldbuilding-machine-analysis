@@ -343,13 +343,14 @@ def get_revision_history(pageid: int):
     }
     response = requests.get(url=API_ENDPOINT, params=params, headers=headers, timeout=10)
     data = response.json()
-    print(json.dumps(data, indent=2))
+    #print(json.dumps(data, indent=2))
     revisions = data["query"]["pages"][str(pageid)]["revisions"]
     output = []
     for revision in revisions:
         output.append(dict((key, revision[key])
                            for key in ["revid", "timestamp", "comment"]))
         output[-1]["minor"] = "minor" in revision
+    print(f"Acquired revision history for page with ID {pageid}")
     return output
     #print("END")
 
@@ -388,7 +389,8 @@ def get_revision_deets(revid: int):
     }
     response = requests.get(url=API_ENDPOINT, params=params, headers=headers, timeout=10)
     data = response.json()
-    print(json.dumps(data, indent=2))
+    #print(json.dumps(data, indent=2))
+    print(f"Returning full comparison details for revision with id {revid}")
     return data["compare"]
     # tosize = data["compare"]["tosize"]
     # if "fromsize" in data["compare"]:
@@ -410,8 +412,7 @@ def get_pageinfo(pageid: int):
     ## Parameters:
     pageid: an ID.
     ## Output:
-    a json object with some extended info on a given page. These info already exist\
-    in other function returns.
+    a json object with some extended info on a given page.
     """
     params = {
         "action": "query",
@@ -429,7 +430,8 @@ def get_pageinfo(pageid: int):
     }
     response = requests.get(url=API_ENDPOINT, params=params, headers=headers, timeout=10)
     data = response.json()
-    print(json.dumps(data, indent=2))
+    #print(json.dumps(data, indent=2))
+    print(f"Returning full info for page {pageid}")
     return data["query"]["pages"][str(pageid)]
     # revisions = data["query"]["pages"][str(pageid)]["revisions"]
     # output = []
@@ -438,17 +440,47 @@ def get_pageinfo(pageid: int):
     #                        for key in ["revid", "timestamp", "comment"]))
     #     output[-1]["minor"] = "minor" in revision
     # return output
+# https://arboretumfictoria.miraheze.org/w/api.php?action=query&prop=revisions&rvprop=size&titles=2S16%20Earthshaker
+
+def get_pagesize(pageid: int):
+    """
+    Given a page ID, pulls the page's size in bytes. Can't be bothered to wordcount it.
+
+    ## Parameters:
+    pageid: an ID.
+    ## Output:
+    a json object with the page's size in bytes.
+    """
+    params = {
+        "action": "query",
+        "format": "json",
+        "pageids": f"{pageid}",
+        "prop": "revisions",
+        "rvprop": "size",
+        #"rvlimit": 100,
+        #"cmtitle": secret_variables.MAIN_CATEGORY,
+        #"cmlimit": 100 # doesn't work with revisions; only 1 page at a time
+    }
+    headers = {
+        "User-Agent": secret_variables.USERAGENT
+        # Wikipedia requires a user agent string for Python script requests
+    }
+    response = requests.get(url=API_ENDPOINT, params=params, headers=headers, timeout=10)
+    data = response.json()
+    #print(json.dumps(data, indent=2))
+    print(f"Returning page size for page {pageid}")
+    return data["query"]["pages"][str(pageid)]["revisions"][0]["size"]
 
 plans = """
 Data to collect at a future date:
 
-Info on each page:
+Info on each page: GOT
 - Page ID (use in place of title for obfuscation)
 - Type (tale, fake wikipedia entry, or discussion note)
 - (Maybe separate them into two tables?)
 - Text count
 
-Revisions:
+Revisions: GOT
 - Revision page ID
 - Page ID
 - Timestamp
