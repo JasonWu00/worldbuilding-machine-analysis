@@ -2,4 +2,5 @@ secrets/
 **/secret_variables.py
 secret_variables.py
 pages/
+datasets/
 __pycache__/
