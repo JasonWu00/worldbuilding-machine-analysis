@@ -32,6 +32,8 @@ print(pageids)
 print("secondary categories for said pages:")
 print(altcats)
 
+# Counts words manually. Not part of the API calls since they don't return that info and I don't
+# feel like API calling the raw html every time I want to check.
 wordcounts_main = []
 filelist = os.listdir("pages/")
 filelist.sort(key=lambda filename: filename[-8:-4])
@@ -62,6 +64,7 @@ notetypes = ["Discussion Notes"] * len(notesids)
 # regex pulling datetimes for the notes
 notesdts = []
 noteswordcounts = []
+notesbytescounts = []
 pattern1 = r"[0-9]{1,2} [a-zA-Z]* [0-9]{4}"
 pattern2 = r"[0-9]{4} EST"
 print("Parsing the notes for datetimes")
@@ -76,12 +79,14 @@ for notesid in notesids:
                                                       minutes=int(hourminute[2:]))
         notesdts.append(pd_dt)
         noteswordcounts.append(len(filebody.strip().split(" ")))
+        notesbytescounts.append(len(filebody))
     #print(listid, notes_filelist[listid], pd_dt, noteswordcounts)
 #print(*notesdts, sep="\n")
 
 notes_df = pd.DataFrame({"Page ID": notesids,
                          "Other Categories": notetypes,
                          "Word Count": noteswordcounts,
+                         "Page Size (Bytes)": notesbytescounts,
                          "Timestamp": notesdts})
 notes_df.to_csv(DATASETS_PATH+"discussion_notes_df.csv", index=False)
 
