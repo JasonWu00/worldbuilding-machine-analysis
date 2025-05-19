@@ -13,9 +13,8 @@ def deformat_quotes(wikitext: str) -> str:
     ## Returns
     a block of text with raw quote text
     """
-    noticebox_pattern = r"{{Notice[# {}|=&\*\-a-zA-Z 0-9\n'<>,;:_\.\[\]\/\"\u2020]*?\| header =[ ]{0,1}(['., a-zA-Z0-9]*?)\n \| text = ([., a-zA-Z0-9\n]*?)}}"
-    quotes_pattern = r"{{Quote[# {}|=&\*\-a-zA-Z 0-9\n'<>,;:_\.\[\]\/\"\u2020]*?\| quote =[\n]{0,1}(['.!, a-zA-Z0-9\n<>]*)\n \| speaker = ([., a-zA-Z0-9\"]*)\n \| source =\n}}"
-    # test
+    noticebox_pattern = r"{{Notice[# {}|=&\*\-a-zA-Z 0-9\n'<>,;:_\.\[\]\/\"\u2020]*?\| header =[ ]{0,1}(.*)\n \| text = (.*)\n}}"
+    quotes_pattern = r"{{Quote[# {}|=&\*\-a-zA-Z 0-9\n'<>,;:_\.\[\]\/\"\u2020]*?\| quote =[\n]{0,1}(.*?)\n \| speaker = (.*?)\n \| source =\n}}"    # test
     newtext = wikitext
     patterns_replacements = {
         quotes_pattern: r"QUOTE\n\1\n- \2",
