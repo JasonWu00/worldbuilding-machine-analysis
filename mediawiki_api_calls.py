@@ -361,16 +361,12 @@ def get_revision_history(pageid: int):
 
 def get_revision_deets(revid: int):
     """
-    Given a revision page ID, returns the "details" for the revision. This includes:
-    - the number of bytes added or subtracted compared to prev rev
-    - the page ID it corresponds to
+    Given a revision page ID, returns the "details" for the revision.
 
     ## Parameters:
     revid: an ID.
     ## Output:
-    A list in the form of [size difference (int), page ID (int)]    
-    Size difference is alculated using the size of the prev and current revisions.
-    The diffsize field is misleading so I did not use it.
+    A json object containing a number of variables.
     """
     params = {
         "action": "compare",
@@ -471,7 +467,48 @@ def get_pagesize(pageid: int):
     print(f"Returning page size for page {pageid}")
     return data["query"]["pages"][str(pageid)]["revisions"][0]["size"]
 
+def get_wikitext(revid: int) -> str:
+    """
+    Placeholder.
+    """
+    params = {
+        "action": "parse",
+        "format": "json",
+        "oldid": f"{revid}",
+        "prop": "wikitext",
+        #"rvprop": "size",
+        #"rvlimit": 100,
+        #"cmtitle": secret_variables.MAIN_CATEGORY,
+        #"cmlimit": 100 # doesn't work with revisions; only 1 page at a time
+    }
+    headers = {
+        "User-Agent": secret_variables.USERAGENT
+        # Wikipedia requires a user agent string for Python script requests
+    }
+    response = requests.get(url=API_ENDPOINT, params=params, headers=headers, timeout=10)
+    data = response.json()
+    return data["parse"]["wikitext"]["*"]
+
+def get_revision_wordcount(revid: int):
+    """
+    Placeholder.
+    """
+    deets = get_revision_deets(revid)
+    old_rev_id = deets["fromrevid"] if "fromrevid" in deets else 0
+
+    # Extract wikitext for provided revision ID, then clean text and count words.
+    rev_wikitext = get_wikitext(revid)
+    old_rev_wikitext = get_wikitext(old_rev_id)
+    # insert deformatting functions here
+
 PLANS = """
+To Do:
+New pipeline
+- using the API, pull wikitext for a given page or revision
+- deformat the text using regex
+- save plaintext and wikitext versions as text files
+- reuse this functionality to calculate word changes between revisions
+
 Data to collect at a future date:
 
 Info on each page: GOT
@@ -479,6 +516,7 @@ Info on each page: GOT
 - Type (tale, fake wikipedia entry, or discussion note)
 - (Maybe separate them into two tables?)
 - Text count
+- Formatting vs. Actual Text ratios
 
 Revisions: GOT
 - Revision page ID
