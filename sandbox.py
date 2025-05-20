@@ -10,8 +10,10 @@ import regex_cleaners
 # print(mediawiki_api_calls.get_revision_history(310))
 # print(pagesize)
 # print(mediawiki_api_calls.get_revision_deets(3278), 427) # expected result: 427
-wikitext = mediawiki_api_calls.get_wikitext(3397)
-print(wikitext)
+wikitext = mediawiki_api_calls.get_wikitext(3274)
+#print(wikitext)
+plaintext = regex_cleaners.deformat_cycle(wikitext)
+print(plaintext)
 # hist = mediawiki_api_calls.get_revision_history(583)
 
-print(regex_cleaners.deformat_infobox_entity(wikitext))
+#print(regex_cleaners.deformat_infobox_entity(wikitext))
