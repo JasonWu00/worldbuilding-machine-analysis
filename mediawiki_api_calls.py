@@ -6,11 +6,13 @@ Some variables from secret_variables are obfuscated because I am not yet ready
 to be revealing to absolutely everyone what I have written yet.
 """
 import os
+import re
 #import json
 import requests
 # static variables that lead to where the source material is located at.
 from bs4 import BeautifulSoup
 import secret_variables
+import regex_cleaners
 
 API_ENDPOINT = secret_variables.WIKI_URL + "/w/api.php"
 SCRAPED_FILES_PATH = "pages/"
@@ -62,6 +64,39 @@ def get_pages_by_category(api_endpoint: str, category: str):
     print(response)
     data = response.json()
     return data
+
+def scrape_one_page_new(pageid: int, pagename: str, handle_discussions=False):
+    """
+    scrape_one_page but using APIs instead of direct scrapes.
+    """
+    wikitext = get_wikitext_current(pageid)
+    if not handle_discussions: # handling a standard page
+        with open(pagename+"-"+f"{pageid}W"+".txt", 'w', encoding='utf-8') as f:
+            f.write(wikitext)
+        rawtext = regex_cleaners.deformat_cycle(wikitext)
+        with open(pagename+"-"+f"{pageid}R"+".txt", 'w', encoding='utf-8') as f:
+            f.write(rawtext)
+        print(f"Wrote page to {pagename}-{pageid}R/W.txt")
+    else: # the discussion page calls for special procedures
+        topics = re.split(r"----\n<br>\n----", wikitext) # all topics are separated by this
+        topics_counter = NOTES_IDS_START
+        for topic in topics: #write each topic into separate txtfile
+            #print(topic)
+            if topics_counter != NOTES_IDS_START: # skip the first topic; contains junk
+                header = re.search(r"===[ ]{0,1}(.*?)[ ]{0,1}===", topic).group(1)
+                header = regex_cleaners.deformat_links(header)
+                for replace_key, replacement in replace_keys_dict.items():
+                    header = header.replace(replace_key, replacement)
+                header = header.replace("  ", " ")
+                with open(NOTES_PATH+header+f"-NOTES-{topics_counter:04}W.txt",
+                        'w', encoding='utf-8') as n:
+                    n.write(topic) # this is for the raw wikitext
+                with open(NOTES_PATH+header+f"-NOTES-{topics_counter:04}R.txt",
+                        'w', encoding='utf-8') as n:
+                    n.write(regex_cleaners.deformat_cycle(topic)) # rawtext
+                print(f"Wrote discussion notes to file location {NOTES_PATH+header}-NOTES-1{topics_counter:04}R/W.txt")
+            topics_counter+=1
+
 
 def scrape_one_page(pagelink, pagename, highlight_sections=False):
     """
@@ -190,13 +225,10 @@ def purge_folders(path, recursive=False):
     """
     for filename in os.listdir(path):
         filepath = os.path.join(path, filename)
-        try:
-            if ".txt" in filepath and os.path.isfile(filepath):
-                os.remove(filepath)
-            elif recursive and os.path.isdir(filepath):
-                purge_folders(filepath)
-        except BaseException as e:
-            print(f"Failed to purge files in folder {path}: {e}")
+        if ".txt" in filepath and os.path.isfile(filepath):
+            os.remove(filepath)
+        elif recursive and os.path.isdir(filepath):
+            purge_folders(filepath)
 
 def scrapecycle():
     """
@@ -219,20 +251,23 @@ def scrapecycle():
     #print(main_cat_json)
     for page in main_cat_json["query"]["categorymembers"]:
         #print(f"id: {page['pageid']}; title: {page['title']}")
-        pagelink = secret_variables.WIKI_URL + "/wiki/" + page['title'].replace(' ', '_')
+        #pagelink = secret_variables.WIKI_URL + "/wiki/" + page['title'].replace(' ', '_')
         pagename = page["title"]
         pageid = page["pageid"]
         for replace_key, replacement in replace_keys_dict.items():
             #print(replace_key)
             #if replace_key in pagename:
             pagename = pagename.replace(replace_key, replacement)
-        scrape_one_page(pagelink, SCRAPED_FILES_PATH+pagename+"-"+f"{pageid:04}")
+        scrape_one_page_new(pageid, SCRAPED_FILES_PATH+pagename)
     #print("scraping the talk page")
-    scrape_one_page(secret_variables.DISCUSSION_PAGE,
-                    SCRAPED_FILES_PATH+secret_variables.CAT_TALK_FILENAME,
-                    highlight_sections=True)
-    parse_discussions(SCRAPED_FILES_PATH+secret_variables.CAT_TALK_FILENAME+".txt", NOTES_PATH)
-    os.remove(SCRAPED_FILES_PATH+secret_variables.CAT_TALK_FILENAME+".txt")
+    scrape_one_page_new(secret_variables.DISCUSSION_ID,
+                        SCRAPED_FILES_PATH+secret_variables.CAT_TALK_FILENAME,
+                        handle_discussions=True)
+    # scrape_one_page(secret_variables.DISCUSSION_PAGE,
+    #                 SCRAPED_FILES_PATH+secret_variables.CAT_TALK_FILENAME,
+    #                 highlight_sections=True)
+    #parse_discussions(SCRAPED_FILES_PATH+secret_variables.CAT_TALK_FILENAME+".txt", NOTES_PATH)
+    #os.remove(SCRAPED_FILES_PATH+secret_variables.CAT_TALK_FILENAME+".txt")
 
 def getallpageids() -> list[int]:
     """
@@ -471,6 +506,8 @@ def get_wikitext(revid: int) -> str:
     """
     Placeholder.
     """
+    if revid == 0:
+        return ""
     params = {
         "action": "parse",
         "format": "json",
@@ -489,9 +526,44 @@ def get_wikitext(revid: int) -> str:
     data = response.json()
     return data["parse"]["wikitext"]["*"]
 
+def get_wikitext_current(pageid: int) -> str:
+    """
+    get_wikitext except it gets the latest for a given page.
+    """
+    params = {
+        "action": "parse",
+        "format": "json",
+        "pageid": f"{pageid}",
+        "prop": "wikitext",
+        #"rvprop": "size",
+        #"rvlimit": 100,
+        #"cmtitle": secret_variables.MAIN_CATEGORY,
+        #"cmlimit": 100 # doesn't work with revisions; only 1 page at a time
+    }
+    headers = {
+        "User-Agent": secret_variables.USERAGENT
+        # Wikipedia requires a user agent string for Python script requests
+    }
+    response = requests.get(url=API_ENDPOINT, params=params, headers=headers, timeout=10)
+    data = response.json()
+    return data["parse"]["wikitext"]["*"]
+
+def get_wordcount_file(filename: str):
+    """
+    See the header.
+    """
+    with open(filename, 'r', encoding='utf-8') as f:
+        return get_wordcount_text(f.read())
+def get_wordcount_text(text: str):
+    """
+    See the header.
+    """
+    return len(text.strip().split(" "))
+
 def get_revision_wordcount(revid: int):
     """
-    Placeholder.
+    Given a revision ID, compares the file at that revision to the previous version.
+    Returns length difference (current - prev) measured by [words, bytes].
     """
     deets = get_revision_deets(revid)
     old_rev_id = deets["fromrevid"] if "fromrevid" in deets else 0
@@ -499,6 +571,12 @@ def get_revision_wordcount(revid: int):
     # Extract wikitext for provided revision ID, then clean text and count words.
     rev_wikitext = get_wikitext(revid)
     old_rev_wikitext = get_wikitext(old_rev_id)
+    rev_raw = regex_cleaners.deformat_cycle(rev_wikitext)
+    old_rev_raw = regex_cleaners.deformat_cycle(old_rev_wikitext)
+
+    worddiff = get_wordcount_text(rev_raw) - get_wordcount_text(old_rev_raw)
+    bytediff = len(rev_wikitext) - len(old_rev_wikitext)
+    return worddiff, bytediff
     # insert deformatting functions here
 
 PLANS = """
