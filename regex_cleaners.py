@@ -38,6 +38,7 @@ def deformat_misc(wikitext: str) -> str:
     regex_replacement_dict = {
         r"[=]{3,5}(.*?)[=]{3,5}": r"\1", # turns === test === to test
         r"<br>": " ",
+        r"----\n<br>\n----": "="
     }
     for element in elements_list:
         newtext = newtext.replace(element, "")
@@ -122,7 +123,7 @@ def deformat_links(wikitext: str) -> str:
     ## Returns
     a block of text with the link embed text in place of the links.
     """
-    external_link_pattern = r"\[https:.*? (.{1,}?)\]"
+    external_link_pattern = r"\[http[s]{0,1}:.*? (.{1,}?)\]"
     internal_link_pattern = r"\[\[([^:|]*?)\]\]"
     internal_link_displaytext_pattern = r"\[\[.*?\|(.*?)\]\]"
     categories_link_pattern = r"\[\[Category:.*?\]\]"
