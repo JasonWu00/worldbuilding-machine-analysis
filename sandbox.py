@@ -7,6 +7,7 @@ import secret_variables
 import mediawiki_api_calls
 import pandas as pd
 import regex_cleaners
+import pandas_df_funcs
 
 SCRAPED_FILES_PATH = "pages/"
 DATASETS_PATH = "datasets/"
@@ -21,17 +22,22 @@ start_time = time.perf_counter()
 #print(wikitext)
 #plaintext = regex_cleaners.deformat_cycle(wikitext)
 #print(mediawiki_api_calls.get_revision_wordcount(3303))
-mediawiki_api_calls.purge_folders(NOTES_PATH)
-mediawiki_api_calls.scrape_one_page_new(secret_variables.DISCUSSION_ID,
-                        SCRAPED_FILES_PATH+secret_variables.CAT_TALK_FILENAME,
-                        handle_discussions=True)
+# mediawiki_api_calls.purge_folders(NOTES_PATH)
+# mediawiki_api_calls.scrape_one_page_new(secret_variables.DISCUSSION_ID,
+#                         SCRAPED_FILES_PATH+secret_variables.CAT_TALK_FILENAME,
+#                         handle_discussions=True)
 # print(regex_cleaners.deformat_links(
 #     "[http://www.infinityplus.co.uk/stories/colderwar.htm \"A Colder War\"] by Charles Stross\
 #         and Ideas Generated from a Re-Read-NOTES-11141R/W.txt"))
 # for filename in os.listdir(SCRAPED_FILES_PATH):
 #     if " - " in filename:
 #         print(filename)
+# filelist = os.listdir("pages/")
+# filelist.sort(key=lambda filename: filename[-9:-5])
+# print(filelist)
+#print(regex_cleaners.deformat_infobox_entity(mediawiki_api_calls.get_wikitext(3248)))
+print(mediawiki_api_calls.get_revision_wordcount(2585))
 end_time = time.perf_counter()
 # hist = mediawiki_api_calls.get_revision_history(583)
-print(f"The revision comparison function took {end_time - start_time} seconds to run")
+print(f"The code above took {end_time - start_time} seconds to run")
 #print(regex_cleaners.deformat_infobox_entity(wikitext))
