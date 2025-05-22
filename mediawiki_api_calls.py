@@ -7,10 +7,11 @@ to be revealing to absolutely everyone what I have written yet.
 """
 import os
 import re
+#from typing import Tuple, List
 #import json
 import requests
 # static variables that lead to where the source material is located at.
-from bs4 import BeautifulSoup
+#from bs4 import BeautifulSoup
 import secret_variables
 import regex_cleaners
 
@@ -18,6 +19,7 @@ API_ENDPOINT = secret_variables.WIKI_URL + "/w/api.php"
 SCRAPED_FILES_PATH = "pages/"
 DATASETS_PATH = "datasets/"
 NOTES_PATH = "pages/notes/"
+NOTES_IDS_START = 999
 
 replace_keys_dict = {
     '/': '-',
@@ -94,117 +96,7 @@ def scrape_one_page_new(pageid: int, pagename: str, handle_discussions=False):
                 with open(NOTES_PATH+header+f"-NOTES-{topics_counter:04}R.txt",
                         'w', encoding='utf-8') as n:
                     n.write(regex_cleaners.deformat_cycle(topic)) # rawtext
-                print(f"Wrote discussion notes to file location {NOTES_PATH+header}-NOTES-1{topics_counter:04}R/W.txt")
-            topics_counter+=1
-
-
-def scrape_one_page(pagelink, pagename, highlight_sections=False):
-    """
-    Grab one MediaWiki page and scrape its text content into a .txt file.
-
-    ## Parameters:
-    pagelink: a URL to a given MediaWiki page.    
-    pagename: path + name for the local .txt file.    
-    highlight_sections: default False; marks topic sections in the category discussions\
-    page by separating them with a special character that does not appear in main text bodies.
-    ## Returns
-    One .txt file at the indicated path with the indicated name.
-    """
-    r = requests.get(pagelink, headers={"User-Agent": secret_variables.USERAGENT}, timeout=10)
-    soup = BeautifulSoup(r.content, 'html.parser')
-    #print(soup)
-    #print("="*20)
-    all_pars = soup.find_all(['p', 'ul', 'th', 'td', 'h1', 'h3', 'h4', 'h5', 'pre'])
-
-    with open(pagename+".txt", 'w', encoding='utf-8') as f:
-        # creates file if not exists, otherwise opens with overwite
-        start_writing = False
-
-        for para in all_pars:
-            if para.find(['th', 'td', 'ul']) is None and para.find_parent(['ul', 'td']) is None:
-                # no subtables or sublists
-                paratext = para.get_text().strip()
-                #print(paratext)
-
-                if "Create account" in paratext or "Personal tools" in paratext:
-                    # This significes that we went past the main body of text
-                    break
-                if paratext is not None and paratext != "":
-                    # do not write empty paras (leads to unnecessary amount of newlines)
-                    #print(paratext)
-                    if start_writing:
-                        f.write('\n\n')
-                    if highlight_sections and para.name == "h3":
-                        # Special handling procedure for the category discussion page
-                        f.write("=\n")
-                        # special delimiter character which does not show up
-                        # in the discussions file plaintext, to be used for later processing
-                    f.write(paratext.replace('\n\n', '\n'))
-                    start_writing = True
-            #if para.find(['li']) is not None: # tere is a sublist; don't print it
-                #print(para.decompose().get_text().strip())
-        print(f"finished scraping text into page: {pagename}")
-
-    # going back to clean up something
-    with open(pagename+".txt", 'r+', encoding='utf-8') as f:
-        filebody = f.read()
-        f.seek(0)
-        # the first line is a repeat of the second
-        # the last line contains junk text on categories
-        # this splits the paratext into a list, drops said junk data,
-        # then recombines them
-        # I could probably find a better way to do it later
-        # but this hackjob will have to do
-        paras = filebody.split("\n\n")[1:]
-        #print(paras[0:2])
-        if secret_variables.CAT_TALK_FILENAME[15:] in paras[-1]:
-            paras = paras[:-1]
-        filebody = "\n\n".join(paras)
-        f.write(filebody)
-        f.truncate()
-        print(f"finished dropping first and last line from page: {pagename}")
-
-NOTES_IDS_START = 999
-
-def parse_discussions(cat_talk_route: str, notes_path: str):
-    r"""
-    Parse the category talk page into individual topics.
-
-    The talk page contains a number of topic blocks separated by this formatting:
-
-    \=\=\=\=
-    \<br>
-    \=\=\=\=
-
-    This function divides the raw discussion text into a list of topics using these delimiters.
-
-    To those looking at the raw docstring: the forward slashes exist to make the docstrong format
-    correct on VScode and others.
-
-    ## Parameters
-    cat_talk_route: local path to the category talk page.    
-    notes_path: local path to a folder where individual topic .txts will go.
-    ## Returns
-    a number of .txt files, one per topic in the discussion page, at the notes_path.\
-    Each txt filename takes the format of filename-pageid.txt, with pageid taking up 4 chars.
-    """
-    with open(cat_talk_route, 'r', encoding='utf-8') as f:
-        topics = f.read().split("=")
-        topics_counter = NOTES_IDS_START
-        for topic in topics: #write each topic into separate txtfile
-            if topics_counter != NOTES_IDS_START:
-                paragraphs = topic.split('\n\n')
-                header = paragraphs[0]
-                for replace_key, replacement in replace_keys_dict.items():
-                    header = header.replace(replace_key, replacement)
-                with open(notes_path+header[1:]+f"-NOTES-{topics_counter:04}.txt",
-                        'w', encoding='utf-8') as n: # skips first char
-                    filestring = "" # write everything to here, then clean up before posting
-                    for paragraph in paragraphs:
-                        filestring += paragraph
-                        filestring += '\n\n'
-                    n.write(filestring.strip())
-                    print(f"Wrote discussion notes to file location {notes_path+header[1:]}-NOTES-1{topics_counter}.txt")
+                print(f"Wrote notes to {NOTES_PATH+header}-NOTES-1{topics_counter:04}R/W.txt")
             topics_counter+=1
 
 def purge_folders(path, recursive=False):
@@ -545,8 +437,15 @@ def get_wikitext_current(pageid: int) -> str:
         # Wikipedia requires a user agent string for Python script requests
     }
     response = requests.get(url=API_ENDPOINT, params=params, headers=headers, timeout=10)
-    data = response.json()
-    return data["parse"]["wikitext"]["*"]
+
+    # I encountered a bug where the response.json() line failed for some reason
+    # jsondecodeerror: expecting value line 1 column 1 (char 0)
+    # so here I am trying to catch the response if or when it happens again
+    try:
+        data = response.json()
+        return data["parse"]["wikitext"]["*"]
+    except:
+        print(response)
 
 def get_wordcount_file(filename: str):
     """
@@ -563,10 +462,26 @@ def get_wordcount_text(text: str):
 def get_revision_wordcount(revid: int):
     """
     Given a revision ID, compares the file at that revision to the previous version.
-    Returns length difference (current - prev) measured by [words, bytes].
+    Returns length difference (current - prev) measured by words.
     """
-    deets = get_revision_deets(revid)
-    old_rev_id = deets["fromrevid"] if "fromrevid" in deets else 0
+    params = {
+        "action": "compare",
+        "format": "json",
+        "fromrev": f"{revid}",
+        "torelative": "prev",
+        "prop": "ids",
+        #"rvprop": "ids|timestamp|flags|comment|user",
+        #"rvlimit": 100,
+        #"cmtitle": secret_variables.MAIN_CATEGORY,
+        #"cmlimit": 100 # doesn't work with revisions; only 1 page at a time
+    }
+    headers = {
+        "User-Agent": secret_variables.USERAGENT
+        # Wikipedia requires a user agent string for Python script requests
+    }
+    response = requests.get(url=API_ENDPOINT, params=params, headers=headers, timeout=10)
+    deets = response.json()
+    old_rev_id = deets["compare"]["fromrevid"] if "fromrevid" in deets["compare"] else 0
 
     # Extract wikitext for provided revision ID, then clean text and count words.
     rev_wikitext = get_wikitext(revid)
@@ -574,10 +489,37 @@ def get_revision_wordcount(revid: int):
     rev_raw = regex_cleaners.deformat_cycle(rev_wikitext)
     old_rev_raw = regex_cleaners.deformat_cycle(old_rev_wikitext)
 
-    worddiff = get_wordcount_text(rev_raw) - get_wordcount_text(old_rev_raw)
-    bytediff = len(rev_wikitext) - len(old_rev_wikitext)
-    return worddiff, bytediff
+    curr_words = get_wordcount_text(rev_raw)
+    old_words = get_wordcount_text(old_rev_raw)
+    #print(revid, old_rev_id)
+    #print(curr_words, old_words)
+    worddiff = curr_words - old_words
+    #bytediff = len(rev_wikitext) - len(old_rev_wikitext)
+    return worddiff
     # insert deformatting functions here
+
+def get_page_lastedit(pageid: int) -> str:
+    """
+    See function title.
+    """
+    params = {
+        "action": "query",
+        "format": "json",
+        "pageids": f"{pageid}",
+        "prop": "revisions",
+        "rvprop": "ids|timestamp|flags|comment|user",
+        "rvlimit": 1,
+        #"cmtitle": secret_variables.MAIN_CATEGORY,
+        #"cmlimit": 100 # doesn't work with revisions; only 1 page at a time
+    }
+    headers = {
+        "User-Agent": secret_variables.USERAGENT
+        # Wikipedia requires a user agent string for Python script requests
+    }
+    response = requests.get(url=API_ENDPOINT, params=params, headers=headers, timeout=10)
+    data = response.json()
+    ts = data["query"]["pages"][f"{pageid}"]["revisions"][0]["timestamp"]
+    return ts
 
 PLANS = """
 To Do:
