@@ -3,6 +3,7 @@ Contains functions that de-formats wikitext using RegEx.
 """
 import re
 from bs4 import BeautifulSoup
+#import pandas as pd
 
 RESEARCH_CITATIONS = """
 https://community.splunk.com/t5/Splunk-Search/Regex-that-matches-all-characters-including-newline/m-p/659011
@@ -38,7 +39,8 @@ def deformat_misc(wikitext: str) -> str:
     regex_replacement_dict = {
         r"[=]{3,5}(.*?)[=]{3,5}": r"\1", # turns === test === to test
         r"<br>": " ",
-        r"----\n<br>\n----": "="
+        r"----\n<br>\n----": "=",
+        r"<hr>": "----",
     }
     for element in elements_list:
         newtext = newtext.replace(element, "")
@@ -156,7 +158,7 @@ def deformat_infobox_entity(wikitext: str) -> str:
     """
     newtext = wikitext
     badlist = ["test", "placeholder", ""]
-    xib_param_pattern = r"(?s)(data|header|label|ddata1|ddata2) =[ ]{0,1}(.*?)[|}\n]"
+    xib_param_pattern = r"(?s)(data|header|label|ddata1|ddata2) =[ ]{0,1}(.*?)( \||}})"
     #mypattern2 = r"{{xib_param[=a-zA-Z 0-9\n'<br>\|&;:,]*}}"
     infobox_pattern = r"(?s){{Infobox entity\n(.*?)}}\n}}"
 
@@ -173,7 +175,7 @@ def deformat_infobox_entity(wikitext: str) -> str:
         rawdata = ""
         for xib in xibs:
             #print(row)
-            if len(xib) == 2 and xib[1] != "" and xib[1].strip("\n") not in badlist:
+            if len(xib) >= 2 and xib[1] not in ["", "\n"] and xib[1].strip("\n") not in badlist:
                 rawdata += xib[1].strip("\n")
                 rawdata += "\n\n"
 
