@@ -1,6 +1,29 @@
 """
 This file uses the mediawiki_api_calls.py functions to
 produce a set of pandas DataFrames that can then be used for analysis elsewhere.
+
+Author notes
+Errors encountered while running the revision data scraper function:
+
+Error set 1:
+socket.gaierror: [Errno -3] Temporary failure in name resolution    
+urllib3.exceptions.NameResolutionError: <urllib3.connection.HTTPSConnection object at
+0x7f9fef397a30>: Failed to resolve '[WEBSITE LINK]'
+([Errno -3] Temporary failure in name resolution)   
+urllib3.exceptions.MaxRetryError: HTTPSConnectionPool(host='[WEBSITE LINK]', port=443):
+Max retries exceeded with url:
+/w/api.php?action=compare&format=json&fromrev=2884&torelative=prev&prop=ids
+(caused by prev error)     
+requests.exceptions.ConnectionError: HTTPSConnectionPool(host='[WEBSITE LINK]', port=443):
+Max retries exceeded with url:
+/w/api.php?action=compare&format=json&fromrev=2884&torelative=prev&prop=ids
+(caused by urllib3 error)
+
+Error set 2:
+jsondecodeerror: expecting value: line 1 column 1 (char 0) (points to a data=response.json() line)
+
+These seem to be caused by things outside the code, whether it be the WiFi router or the API,
+so I don't have any fixes for them. I just rerun the code and hope it works out.
 """
 # import os
 # import re
@@ -36,18 +59,20 @@ def produce_mainpages_df():
     # print("secondary categories for said pages:")
     # print(altcats)
 
-    wordc, bytec, cfp = [], [], []
+    wordc, bytec, cfp, wordlen = [], [], [], []
     for pageid in pageids:
-        w, b, c = pandas_df_funcs.wordbytescount(pageid)
+        w, b, c, l = pandas_df_funcs.wordbytescount(pageid)
         wordc.append(w)
         bytec.append(b)
         cfp.append(c)
+        wordlen.append(l)
 
     pages_df = pd.DataFrame({"Page ID": pageids,
                             "Other Category": altcats,
                             "Word Count": wordc,
                             "Page Size (Bytes)": bytec,
-                            "Content to Formatting Percent": cfp,})
+                            "Content to Formatting Percent": cfp,
+                            "Average Word Length": wordlen,})
 
     pages_df["Last Edited Time"] = pages_df["Page ID"].apply(lambda pageid:
                                                     pd.to_datetime(mediawiki_api_calls
@@ -75,17 +100,20 @@ def produce_notes_df():
     noteswordcounts = []
     notesbytescounts = []
     notescfp = []
+    noteswordlen = []
     for notesid in notesids:
         notesdts.append(pandas_df_funcs.get_note_dt(notesid))
-        w, b, c = pandas_df_funcs.wordbytescount(notesid, isnotes=True)
+        w, b, c, l = pandas_df_funcs.wordbytescount(notesid, isnotes=True)
         noteswordcounts.append(w)
         notesbytescounts.append(b)
         notescfp.append(c)
+        noteswordlen.append(l)
 
     notes_df = pd.DataFrame({"Page ID": notesids,
                             "Other Categories": notetypes,
                             "Word Count": noteswordcounts,
                             "Page Size (Bytes)": notesbytescounts,
+                            "Average Word Length": noteswordlen,
                             "Content to Formatting Percent": notescfp,
                             "Last Edited Time": notesdts})
     notes_df.to_csv(DATASETS_PATH+"discussion_notes_df.csv", index=False)
@@ -115,12 +143,12 @@ def produce_revs_df():
     """
     revid_list = []
     minor_list = []
-    for pageid in pageids:
+    for pageid in pageids + [secret_variables.DISCUSSION_ID, secret_variables.USERPAGE_ID]:
         hist = mediawiki_api_calls.get_revision_history(pageid)
         for rev in hist:
             revid_list.append(rev["revid"]) #"revision id"
             minor_list.append(rev["minor"])
-    print(revid_list)
+    #print(revid_list)
     pageid_list = []
     timestamps = []
     revbytesizes = []
@@ -146,6 +174,14 @@ def produce_revs_df():
     })
     revs_df.to_csv(DATASETS_PATH+"revisions_df.csv", index=False)
 
-#produce_mainpages_df()
-#produce_notes_df()
-produce_revs_df()
+def main():
+    """
+    Main function.
+    """
+    # mediawiki_api_calls.scrapecycle()
+    # produce_mainpages_df()
+    # produce_notes_df()
+    produce_revs_df()
+
+if __name__ == "__main__":
+    main()
