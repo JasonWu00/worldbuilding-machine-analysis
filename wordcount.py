@@ -12,6 +12,8 @@ mastercount = 0
 def count_all_textfiles(path: str):
     """
     Counts the text count of every .txt file in a given path, including subdirectories.
+    This function only works in folders with only subfolders and text files. Other file types
+    will lead to issues.
 
     ## Parameters
     path: a local path to a folder to parse through.

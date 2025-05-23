@@ -41,6 +41,7 @@ def deformat_misc(wikitext: str) -> str:
         r"<br>": " ",
         r"----\n<br>\n----": "=",
         r"<hr>": "----",
+        r"<div (.*?) data-expandtext=\"(.*?)\">": r"Collapsible Section: \2",
     }
     for element in elements_list:
         newtext = newtext.replace(element, "")
