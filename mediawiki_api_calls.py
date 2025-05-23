@@ -20,6 +20,9 @@ SCRAPED_FILES_PATH = "pages/"
 DATASETS_PATH = "datasets/"
 NOTES_PATH = "pages/notes/"
 NOTES_IDS_START = 999
+TIMEOUT_LIMIT = None
+# I can afford to wait a minute to get past a connection crater
+# though I probably should not make the limit forever; maybe a big number like 120 seconds
 
 replace_keys_dict = {
     '/': '-',
@@ -62,14 +65,23 @@ def get_pages_by_category(api_endpoint: str, category: str):
         "User-Agent": secret_variables.USERAGENT
         # Wikipedia requires a user agent string for Python script requests
     }
-    response = requests.get(url=api_endpoint, params=params, headers=headers, timeout=10)
+    response = requests.get(url=api_endpoint, params=params, headers=headers, timeout=TIMEOUT_LIMIT)
     print(response)
     data = response.json()
     return data
 
 def scrape_one_page_new(pageid: int, pagename: str, handle_discussions=False):
     """
-    scrape_one_page but using APIs instead of direct scrapes.
+    API queries a MediaWiki page. Both its formatted and raw forms will be saved.
+
+    ## Parameters:
+    pagelink: a URL to a given MediaWiki page.    
+    pagename: path + name for the local .txt file.    
+    highlight_sections: default False; marks topic sections in the category discussions\
+    page by separating them with a special character that does not appear in main text bodies.
+    ## Returns
+    Not returned but rather generated: two .txt file at the indicated path with the indicated
+    names, denoted as "wikitext" or "raw".
     """
     wikitext = get_wikitext_current(pageid)
     if not handle_discussions: # handling a standard page
@@ -127,8 +139,8 @@ def scrapecycle():
     Carries out a "web scrape cycle".
     - Delete existing .txt files
     - Get via API call all pages belonging the obfuscated main category
-    - Run the scrape_one_page() function on each page to pull their HTML data
-    and store the data in a text file at the given directory
+    - Run the scrape_one_page() function on each page to pull their formatted text data
+    and store it in a text file at the given directory
     - Run a special set of instructions to scrape then parse a long discussions page that
     requires its own procedure.
 
@@ -152,6 +164,7 @@ def scrapecycle():
             pagename = pagename.replace(replace_key, replacement)
         scrape_one_page_new(pageid, SCRAPED_FILES_PATH+pagename)
     #print("scraping the talk page")
+    scrape_one_page_new(secret_variables.USERPAGE_ID, SCRAPED_FILES_PATH+"Userpage")
     scrape_one_page_new(secret_variables.DISCUSSION_ID,
                         SCRAPED_FILES_PATH+secret_variables.CAT_TALK_FILENAME,
                         handle_discussions=True)
@@ -181,7 +194,7 @@ def getallpageids() -> list[int]:
         "User-Agent": secret_variables.USERAGENT
         # Wikipedia requires a user agent string for Python script requests
     }
-    response = requests.get(url=API_ENDPOINT, params=params, headers=headers, timeout=10)
+    response = requests.get(url=API_ENDPOINT, params=params, headers=headers, timeout=TIMEOUT_LIMIT)
     #print(response)
     data = response.json()
     pageids = [x["pageid"] for x in data["query"]["categorymembers"]]
@@ -223,7 +236,7 @@ def get_categories(pageid: int):
         "User-Agent": secret_variables.USERAGENT
         # Wikipedia requires a user agent string for Python script requests
     }
-    response = requests.get(url=API_ENDPOINT, params=params, headers=headers, timeout=10)
+    response = requests.get(url=API_ENDPOINT, params=params, headers=headers, timeout=TIMEOUT_LIMIT)
     #print(response)
     data = response.json()
     # print(pageids)
@@ -268,7 +281,7 @@ def get_revision_history(pageid: int):
         "User-Agent": secret_variables.USERAGENT
         # Wikipedia requires a user agent string for Python script requests
     }
-    response = requests.get(url=API_ENDPOINT, params=params, headers=headers, timeout=10)
+    response = requests.get(url=API_ENDPOINT, params=params, headers=headers, timeout=TIMEOUT_LIMIT)
     data = response.json()
     #print(json.dumps(data, indent=2))
     revisions = data["query"]["pages"][str(pageid)]["revisions"]
@@ -310,7 +323,7 @@ def get_revision_deets(revid: int):
         "User-Agent": secret_variables.USERAGENT
         # Wikipedia requires a user agent string for Python script requests
     }
-    response = requests.get(url=API_ENDPOINT, params=params, headers=headers, timeout=10)
+    response = requests.get(url=API_ENDPOINT, params=params, headers=headers, timeout=TIMEOUT_LIMIT)
     data = response.json()
     #print(json.dumps(data, indent=2))
     print(f"Returning full comparison details for revision with id {revid}")
@@ -351,7 +364,7 @@ def get_pageinfo(pageid: int):
         "User-Agent": secret_variables.USERAGENT
         # Wikipedia requires a user agent string for Python script requests
     }
-    response = requests.get(url=API_ENDPOINT, params=params, headers=headers, timeout=10)
+    response = requests.get(url=API_ENDPOINT, params=params, headers=headers, timeout=TIMEOUT_LIMIT)
     data = response.json()
     #print(json.dumps(data, indent=2))
     print(f"Returning full info for page {pageid}")
@@ -388,7 +401,7 @@ def get_pagesize(pageid: int):
         "User-Agent": secret_variables.USERAGENT
         # Wikipedia requires a user agent string for Python script requests
     }
-    response = requests.get(url=API_ENDPOINT, params=params, headers=headers, timeout=10)
+    response = requests.get(url=API_ENDPOINT, params=params, headers=headers, timeout=TIMEOUT_LIMIT)
     data = response.json()
     #print(json.dumps(data, indent=2))
     print(f"Returning page size for page {pageid}")
@@ -396,7 +409,12 @@ def get_pagesize(pageid: int):
 
 def get_wikitext(revid: int) -> str:
     """
-    Placeholder.
+    Returns the formatted wikitext for a given page at a given revision ID.
+
+    ## Parameters
+    revid: a revision ID
+    ## Returns
+    a string containing formatted wikitext, or an empty string if revid = 0.
     """
     if revid == 0:
         return ""
@@ -414,7 +432,7 @@ def get_wikitext(revid: int) -> str:
         "User-Agent": secret_variables.USERAGENT
         # Wikipedia requires a user agent string for Python script requests
     }
-    response = requests.get(url=API_ENDPOINT, params=params, headers=headers, timeout=10)
+    response = requests.get(url=API_ENDPOINT, params=params, headers=headers, timeout=TIMEOUT_LIMIT)
     data = response.json()
     return data["parse"]["wikitext"]["*"]
 
@@ -436,26 +454,23 @@ def get_wikitext_current(pageid: int) -> str:
         "User-Agent": secret_variables.USERAGENT
         # Wikipedia requires a user agent string for Python script requests
     }
-    response = requests.get(url=API_ENDPOINT, params=params, headers=headers, timeout=10)
+    response = requests.get(url=API_ENDPOINT, params=params, headers=headers, timeout=TIMEOUT_LIMIT)
 
     # I encountered a bug where the response.json() line failed for some reason
     # jsondecodeerror: expecting value line 1 column 1 (char 0)
     # so here I am trying to catch the response if or when it happens again
-    try:
-        data = response.json()
-        return data["parse"]["wikitext"]["*"]
-    except:
-        print(response)
+    data = response.json()
+    return data["parse"]["wikitext"]["*"]
 
 def get_wordcount_file(filename: str):
     """
-    See the header.
+    Opens a file then runs get_wordcount_text() on its contents.
     """
     with open(filename, 'r', encoding='utf-8') as f:
         return get_wordcount_text(f.read())
 def get_wordcount_text(text: str):
     """
-    See the header.
+    Splits a text into words, then counts how many there are.
     """
     return len(text.strip().split(" "))
 
@@ -479,7 +494,7 @@ def get_revision_wordcount(revid: int):
         "User-Agent": secret_variables.USERAGENT
         # Wikipedia requires a user agent string for Python script requests
     }
-    response = requests.get(url=API_ENDPOINT, params=params, headers=headers, timeout=10)
+    response = requests.get(url=API_ENDPOINT, params=params, headers=headers, timeout=TIMEOUT_LIMIT)
     deets = response.json()
     old_rev_id = deets["compare"]["fromrevid"] if "fromrevid" in deets["compare"] else 0
 
@@ -516,12 +531,14 @@ def get_page_lastedit(pageid: int) -> str:
         "User-Agent": secret_variables.USERAGENT
         # Wikipedia requires a user agent string for Python script requests
     }
-    response = requests.get(url=API_ENDPOINT, params=params, headers=headers, timeout=10)
+    response = requests.get(url=API_ENDPOINT, params=params, headers=headers, timeout=TIMEOUT_LIMIT)
     data = response.json()
     ts = data["query"]["pages"][f"{pageid}"]["revisions"][0]["timestamp"]
     return ts
 
 PLANS = """
+Times are in GMT. Subtract 5 hours to find US East times.
+
 To Do:
 New pipeline
 - using the API, pull wikitext for a given page or revision
@@ -536,19 +553,24 @@ Info on each page: GOT
 - Type (tale, fake wikipedia entry, or discussion note)
 - (Maybe separate them into two tables?)
 - Text count
+- Avg word length
 - Formatting vs. Actual Text ratios
+- Number of edits?
 
 Revisions: GOT
 - Revision page ID
 - Page ID
 - Timestamp
 - is marked as "minor" or not
-- Size of revision
+- Size of revision (bytes, words)
 
 ML predicted values (use Hugging Face models? do it in a py notebook?)
 - Generalized topic categories (history, science, politics, etc)
 - Specialized topic categories (To be determined)
 - Sentiments (positive/negative?)
 
-Author selected values (see the above)
+Things to potentially investigate in visualizations
+- Distribution of revisions over time
+    - Hours of day? Days of week? From start to now?
+- Word counts? Length? Categorization?
 """
