@@ -34,15 +34,17 @@ def altcat_cleanup(altcat: str) -> str:
     """
     if altcat == []:
         return "None"
+    altcat = altcat[0]
     if "Discordant" in altcat: # full alt cat name references some stuff other people wrote
         return "Collaboration"
-    if "Category" in altcat: # a subcategory
+    if "Blue Marble" in altcat: # a subcategory
         return "Subcategory"
     return altcat
 
 def wordbytescount(pageid: int, isnotes: float = False) -> Tuple[int, int, float]:
     """
-    For a given page ID: calculate its word count, its bytes count, and its text/format ratio.
+    For a given page ID: calculate its word count, its bytes count, its text/format ratio,
+    and its average word length.
 
     ## Parameters
     id: a page ID.    
@@ -50,7 +52,8 @@ def wordbytescount(pageid: int, isnotes: float = False) -> Tuple[int, int, float
     ## Returns
     wordcount: number of words in the raw file.    
     bytescount: length of the page or topic, in bytes, including wiki formatting.    
-    tfr: text/format ratio, calculated as raw text byte count / wikitext byte count.
+    tfr: text/format ratio, calculated as raw text byte count / wikitext byte count.    
+    wordlength: average length of words in the raw file, measured in # of letters.
     """
     path = ""
     wikifile, rawfile = "", ""
@@ -63,7 +66,7 @@ def wordbytescount(pageid: int, isnotes: float = False) -> Tuple[int, int, float
         path = NOTES_PATH
         wikifile = [x for x in noteslist if f"{pageid}W" in x][0]
         rawfile = [x for x in noteslist if f"{pageid}R" in x][0]
-    wordcount, bytescount, rawbytescount = 0, 0, 0
+    wordcount, bytescount, rawbytescount, wordlength = 0, 0, 0, 0
     with open(path+wikifile, "r", encoding="utf-8") as f:
         # UTF-8 means that some chars take up more than 1 byte
         # Thus manual counting is necessary
@@ -74,7 +77,8 @@ def wordbytescount(pageid: int, isnotes: float = False) -> Tuple[int, int, float
         text = f.read()
         wordcount = mediawiki_api_calls.get_wordcount_text(text)
         rawbytescount = len(text)
-    return wordcount, bytescount, rawbytescount / bytescount
+        wordlength = len(text) / wordcount
+    return wordcount, bytescount, rawbytescount / bytescount, wordlength
 
 def get_note_dt(notesid: int) -> pd.Timestamp:
     """
@@ -90,7 +94,8 @@ def get_note_dt(notesid: int) -> pd.Timestamp:
     with open(path+rawfile, "r", encoding="utf-8") as f:
         filebody = f.read()
         #mydt = filebody.split("\n\n")
-        ddmmyy = re.search(dt_pattern, filebody)[0] # some notes have two datetimes; choose more recent
+        ddmmyy = re.search(dt_pattern, filebody)[0]
+        # some notes have two datetimes; choose more recent
         hourminute = re.search(hours_pattern, filebody)[0][:5]
         pd_dt = pd.to_datetime(ddmmyy) + pd.Timedelta(hours=int(hourminute[:2]),
                                                     minutes=int(hourminute[2:]))
