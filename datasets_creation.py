@@ -66,7 +66,6 @@ def produce_mainpages_df():
         bytec.append(b)
         cfp.append(c)
         wordlen.append(l)
-
     pages_df = pd.DataFrame({"Page ID": pageids,
                             "Other Category": altcats,
                             "Word Count": wordc,
@@ -82,6 +81,10 @@ def produce_mainpages_df():
 
     pages_df["Last Edited Time"] = pd.to_datetime(pages_df["Last Edited Time"])
     pages_df["Last Edited Time"] = pages_df["Last Edited Time"] - pd.Timedelta(hours=5)
+
+    # manually set some categories
+    for special_ids in [secret_variables.DISCUSSION_ID, secret_variables.USERPAGE_ID]:
+        pages_df.loc[pages_df["Page ID"] == special_ids, "Other Category"] = "Documentation"
     pages_df.to_csv(DATASETS_PATH+"main_pages_df.csv", index=False)
 
 def produce_notes_df():
@@ -190,12 +193,12 @@ def update_revs_df():
     df = pd.read_csv("datasets/revisions_df.csv", parse_dates=["Timestamp"])
     revid_list = []
     minor_list = []
-    for pageid in pageids + [secret_variables.DISCUSSION_ID, secret_variables.USERPAGE_ID]:
-        hist = mediawiki_api_calls.get_revision_history(pageid)
-        for rev in hist:
-            if rev not in df["Revision ID"]:
-                revid_list.append(rev["revid"]) #"revision id"
-                minor_list.append(rev["minor"])
+    for revision in mediawiki_api_calls.get_recent_revisions():
+        revid = revision["revid"]
+        # work I did outside certain categories no longer count
+        if revid not in df["Revision ID"] and revision["pageid"] in pageids:
+            revid_list.append(revid)
+            minor_list.append("True" if "minor" in revid else "False")
     pageid_list = []
     timestamps = []
     revbytesizes = []
@@ -220,6 +223,7 @@ def update_revs_df():
     })
     revs_df["Timestamp"] = pd.to_datetime(revs_df["Timestamp"])
     revs_df["Timestamp"] = revs_df["Timestamp"] - pd.Timedelta(hours=5)
+    #revs_df.to_csv("datasets/new_revs_df.csv", index=False)
     df = pd.concat(df, revs_df)
     df.to_csv("revisions_df", index=False)
 
@@ -228,9 +232,9 @@ def main():
     Main function.
     """
     # mediawiki_api_calls.scrapecycle()
-    # produce_mainpages_df()
+    produce_mainpages_df()
     # produce_notes_df()
-    produce_revs_df()
+    # produce_revs_df()
 
 if __name__ == "__main__":
     main()
