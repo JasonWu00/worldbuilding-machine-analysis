@@ -32,8 +32,8 @@ def altcat_cleanup(altcat: str) -> str:
     """
     Sanitizes alternate category values.
     """
-    if altcat == []:
-        return "None"
+    if altcat in [ [], [""] ]:
+        return "Default"
     altcat = altcat[0]
     if "Discordant" in altcat: # full alt cat name references some stuff other people wrote
         return "Collaboration"
@@ -57,6 +57,7 @@ def wordbytescount(pageid: int, isnotes: float = False) -> Tuple[int, int, float
     """
     path = ""
     wikifile, rawfile = "", ""
+    #print(pageid)
     #print(f"{pageid}W")
     if not isnotes:
         path = SCRAPED_FILES_PATH
