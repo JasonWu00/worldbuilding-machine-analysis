@@ -80,6 +80,8 @@ def produce_mainpages_df():
                                                                     .tz_convert(None)
                                                                     )
 
+    pages_df["Last Edited Time"] = pd.to_datetime(pages_df["Last Edited Time"])
+    pages_df["Last Edited Time"] = pages_df["Last Edited Time"] - pd.Timedelta(hours=5)
     pages_df.to_csv(DATASETS_PATH+"main_pages_df.csv", index=False)
 
 def produce_notes_df():
@@ -116,6 +118,8 @@ def produce_notes_df():
                             "Average Word Length": noteswordlen,
                             "Content to Formatting Percent": notescfp,
                             "Last Edited Time": notesdts})
+    notes_df["Last Edited Time"] = pd.to_datetime(notes_df["Last Edited Time"])
+    notes_df["Last Edited Time"] = notes_df["Last Edited Time"] - pd.Timedelta(hours=5)
     notes_df.to_csv(DATASETS_PATH+"discussion_notes_df.csv", index=False)
 
 #print(mediawiki_api_calls.get_revision_history(583))
@@ -162,7 +166,7 @@ def produce_revs_df():
         revwordsizes.append(worddiff)
         revbytesizes.append(rev_deets["tosize"]-rev_deets["fromsize"]
                             if "fromsize" in rev_deets
-                            else 0)
+                            else rev_deets["tosize"])
 
     revs_df = pd.DataFrame({
         "Revision ID": revid_list,
@@ -172,7 +176,52 @@ def produce_revs_df():
         "Revision Size (Bytes)": revbytesizes,
         "Revision Size (Words)": revwordsizes,
     })
+    revs_df["Timestamp"] = pd.to_datetime(revs_df["Timestamp"])
+    revs_df["Timestamp"] = revs_df["Timestamp"] - pd.Timedelta(hours=5)
     revs_df.to_csv(DATASETS_PATH+"revisions_df.csv", index=False)
+
+def update_revs_df():
+    """
+    Only API query the updates not in the df.
+
+    I will have this as a separate func for now. I will update create_rvs_df
+    when I have the time.
+    """
+    df = pd.read_csv("datasets/revisions_df.csv", parse_dates=["Timestamp"])
+    revid_list = []
+    minor_list = []
+    for pageid in pageids + [secret_variables.DISCUSSION_ID, secret_variables.USERPAGE_ID]:
+        hist = mediawiki_api_calls.get_revision_history(pageid)
+        for rev in hist:
+            if rev not in df["Revision ID"]:
+                revid_list.append(rev["revid"]) #"revision id"
+                minor_list.append(rev["minor"])
+    pageid_list = []
+    timestamps = []
+    revbytesizes = []
+    revwordsizes = []
+    for revid in revid_list:
+        rev_deets = mediawiki_api_calls.get_revision_deets(revid)
+        pageid_list.append(rev_deets["toid"])
+        # timestamp raw looks like: 2025-04-13T05:14:42Z
+        timestamps.append(pd.to_datetime(rev_deets["totimestamp"]).tz_convert(None))
+        worddiff = mediawiki_api_calls.get_revision_wordcount(revid)
+        revwordsizes.append(worddiff)
+        revbytesizes.append(rev_deets["tosize"]-rev_deets["fromsize"]
+                            if "fromsize" in rev_deets
+                            else rev_deets["tosize"])
+    revs_df = pd.DataFrame({
+        "Revision ID": revid_list,
+        "Page ID": pageid_list,
+        "Timestamp": timestamps,
+        "Is Minor": minor_list,
+        "Revision Size (Bytes)": revbytesizes,
+        "Revision Size (Words)": revwordsizes,
+    })
+    revs_df["Timestamp"] = pd.to_datetime(revs_df["Timestamp"])
+    revs_df["Timestamp"] = revs_df["Timestamp"] - pd.Timedelta(hours=5)
+    df = pd.concat(df, revs_df)
+    df.to_csv("revisions_df", index=False)
 
 def main():
     """
