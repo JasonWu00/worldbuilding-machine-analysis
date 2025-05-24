@@ -3,3 +3,4 @@ secrets/
 secret_variables.py
 pages/
 __pycache__/
+visualizations/
