@@ -83,15 +83,17 @@ def scrape_one_page_new(pageid: int, pagename: str, handle_discussions=False):
     Not returned but rather generated: two .txt file at the indicated path with the indicated
     names, denoted as "wikitext" or "raw".
     """
+    print(f"Getting wikitext for pageid {pageid}")
     wikitext = get_wikitext_current(pageid)
-    if not handle_discussions: # handling a standard page
-        with open(pagename+"-"+f"{pageid}W"+".txt", 'w', encoding='utf-8') as f:
-            f.write(wikitext)
-        rawtext = regex_cleaners.deformat_cycle(wikitext)
-        with open(pagename+"-"+f"{pageid}R"+".txt", 'w', encoding='utf-8') as f:
-            f.write(rawtext)
-        print(f"Wrote page to {pagename}-{pageid}R/W.txt")
-    else: # the discussion page calls for special procedures
+
+    with open(pagename+"-"+f"{pageid}W"+".txt", 'w', encoding='utf-8') as f:
+        f.write(wikitext)
+    rawtext = regex_cleaners.deformat_cycle(wikitext)
+    with open(pagename+"-"+f"{pageid}R"+".txt", 'w', encoding='utf-8') as f:
+        f.write(rawtext)
+    print(f"Wrote page to {pagename}-{pageid}R/W.txt")
+
+    if handle_discussions: # the discussion page calls for special procedures
         topics = re.split(r"----\n<br>\n----", wikitext) # all topics are separated by this
         topics_counter = NOTES_IDS_START
         for topic in topics: #write each topic into separate txtfile
@@ -176,7 +178,7 @@ def scrapecycle():
 
 def getallpageids() -> list[int]:
     """
-    Gets all page IDs for the main category.
+    Gets all page IDs for the main category, as well as the discussion talk page and the 
 
     ## Parameters
     None.
@@ -200,7 +202,7 @@ def getallpageids() -> list[int]:
     pageids = [x["pageid"] for x in data["query"]["categorymembers"]]
     #print(len(pageids))
     #print(pageids)
-    return pageids
+    return pageids + [secret_variables.DISCUSSION_ID, secret_variables.USERPAGE_ID]
 
 #pageids = getallpageids()
 #print(pageids)
@@ -241,18 +243,44 @@ def get_categories(pageid: int):
     data = response.json()
     # print(pageids)
     #print(json.dumps(data, indent=2))
-    cats = data["query"]["pages"][str(pageid)]["categories"][1:] # bypass junk, get to categories
-
-    # All categories take the form "Category:catname"
-    # Drop the useless prefix
+    pagedata = data["query"]["pages"][str(pageid)]
     print(f"API called category data for page {pageid}")
-    return [cat["title"][9:] for cat in cats]
+    if "categories" in pagedata: # some pages, like my user page, have no categories.
+        cats = data["query"]["pages"][str(pageid)]["categories"][1:] # bypass junk, get to categories
+
+        # All categories take the form "Category:catname"
+        # Drop the useless prefix
+        return [cat["title"][9:] for cat in cats]
+    return []
 
 # for pageid in pageids:
 #     get_categories(pageid)
 # print(get_categories(567))
 
 # get detailed data on each page, including revisions.
+def get_recent_revisions():
+    """
+    Get my most recent revisions as of the last 3 or 4 days. This lets me soft-update the datasets
+    without rebuilding everything.
+    """
+    params = {
+        "action": "query",
+        "format": "json",
+        "list": "usercontribs",
+        "ucuser": secret_variables.USERNAME,
+        #"prop": "revisions",
+        #"rvprop": "ids|timestamp|flags|comment|user",
+        "ucend": "2025-05-20T00:00:00Z",
+        "uclimit": 100,
+    }
+    headers = {
+        "User-Agent": secret_variables.USERAGENT
+        # Wikipedia requires a user agent string for Python script requests
+    }
+    response = requests.get(url=API_ENDPOINT, params=params, headers=headers, timeout=TIMEOUT_LIMIT)
+    data = response.json()
+    return data["query"]["usercontribs"]
+
 def get_revision_history(pageid: int):
     """
     Given a page ID, return a list of detailed revision data. This includes:
@@ -537,8 +565,6 @@ def get_page_lastedit(pageid: int) -> str:
     return ts
 
 PLANS = """
-Times are in GMT. Subtract 5 hours to find US East times.
-
 To Do:
 New pipeline
 - using the API, pull wikitext for a given page or revision
