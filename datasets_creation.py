@@ -61,17 +61,22 @@ def produce_mainpages_df():
 
     wordc, bytec, cfp, wordlen = [], [], [], []
     for pageid in pageids:
+        #print(pageid)
         w, b, c, l = pandas_df_funcs.wordbytescount(pageid)
         wordc.append(w)
         bytec.append(b)
         cfp.append(c)
         wordlen.append(l)
+    customnotetypes = ["Placeholder"] * len(pageids)
     pages_df = pd.DataFrame({"Page ID": pageids,
                             "Other Category": altcats,
                             "Word Count": wordc,
                             "Page Size (Bytes)": bytec,
                             "Content to Formatting Percent": cfp,
-                            "Average Word Length": wordlen,})
+                            "Average Word Length": wordlen,
+                            "Author-denoted Categories": customnotetypes,
+                            "Is Discussion Note": [False] * len(pageids)
+                            })
 
     pages_df["Last Edited Time"] = pages_df["Page ID"].apply(lambda pageid:
                                                     pd.to_datetime(mediawiki_api_calls
@@ -99,6 +104,7 @@ def produce_notes_df():
             notesids.append(int(filename[-9:-5]))
     #print(notesids)
     notetypes = ["Discussion Notes"] * len(notesids)
+    customnotetypes = ["Placeholder"] * len(notesids)
 
     # regex pulling datetimes for the notes
     notesdts = []
@@ -120,7 +126,10 @@ def produce_notes_df():
                             "Page Size (Bytes)": notesbytescounts,
                             "Average Word Length": noteswordlen,
                             "Content to Formatting Percent": notescfp,
-                            "Last Edited Time": notesdts})
+                            "Last Edited Time": notesdts,
+                            "Author-denoted Categories": customnotetypes,
+                            "Is Discussion Notes": [True] * len(notesids)
+                            })
     notes_df["Last Edited Time"] = pd.to_datetime(notes_df["Last Edited Time"])
     notes_df["Last Edited Time"] = notes_df["Last Edited Time"] - pd.Timedelta(hours=5)
     notes_df.to_csv(DATASETS_PATH+"discussion_notes_df.csv", index=False)
@@ -193,12 +202,12 @@ def update_revs_df():
     df = pd.read_csv("datasets/revisions_df.csv", parse_dates=["Timestamp"])
     revid_list = []
     minor_list = []
+    existing_revids = df["Revision ID"].unique()
     for revision in mediawiki_api_calls.get_recent_revisions():
-        revid = revision["revid"]
         # work I did outside certain categories no longer count
-        if revid not in df["Revision ID"] and revision["pageid"] in pageids:
-            revid_list.append(revid)
-            minor_list.append("True" if "minor" in revid else "False")
+        if revision["revid"] not in existing_revids and revision["pageid"] in pageids:
+            revid_list.append(revision["revid"])
+            minor_list.append("minor" in revision)
     pageid_list = []
     timestamps = []
     revbytesizes = []
@@ -224,17 +233,18 @@ def update_revs_df():
     revs_df["Timestamp"] = pd.to_datetime(revs_df["Timestamp"])
     revs_df["Timestamp"] = revs_df["Timestamp"] - pd.Timedelta(hours=5)
     #revs_df.to_csv("datasets/new_revs_df.csv", index=False)
-    df = pd.concat(df, revs_df)
-    df.to_csv("revisions_df", index=False)
+    df = pd.concat([df, revs_df])
+    df.to_csv(DATASETS_PATH+"revisions_df.csv", index=False)
 
 def main():
     """
     Main function.
     """
-    # mediawiki_api_calls.scrapecycle()
+    #mediawiki_api_calls.scrapecycle()
     produce_mainpages_df()
-    # produce_notes_df()
+    produce_notes_df()
     # produce_revs_df()
+    update_revs_df()
 
 if __name__ == "__main__":
     main()
