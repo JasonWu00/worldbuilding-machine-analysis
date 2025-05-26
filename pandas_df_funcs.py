@@ -28,6 +28,27 @@ filelist = filelist[1:] # drops the notes folder
 noteslist = os.listdir(NOTES_PATH)
 noteslist.sort(key=lambda filename: filename[-9:-5])
 
+def compile_single_excel():
+    """
+    Saves all three datasets into one Excel file.
+    """
+    dfs = []
+    writer = pd.ExcelWriter('datasets/combined_dataset.xlsx', engine='openpyxl')
+    sheetnames = ["Main Pages", "Discussion Notes", "Revisions"]
+    i=0
+    for dfname in ["main_pages_df", "discussion_notes_df", "revisions_df"]:
+        df = pd.read_csv(f"datasets/{dfname}.csv")
+        for colname in ["Timestamp", "Last Edited Time"]:
+            if colname in df.columns:
+                df[colname] = pd.to_datetime(df[colname])
+        df.to_excel(f"datasets/{dfname}.xlsx", sheet_name=sheetnames[i], index=False)
+        dfs.append(df)
+        i+=1
+    names = ["Main Pages", "Discussion Notes", "Revisions"]
+    for i, df in enumerate(dfs):
+        df.to_excel(writer, sheet_name = names[i], index=False)
+    writer.close()
+
 def altcat_cleanup(altcat: str) -> str:
     """
     Sanitizes alternate category values.
