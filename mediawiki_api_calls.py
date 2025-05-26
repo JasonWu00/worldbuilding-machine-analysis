@@ -110,7 +110,7 @@ def scrape_one_page_new(pageid: int, pagename: str, handle_discussions=False):
                 with open(NOTES_PATH+header+f"-NOTES-{topics_counter:04}R.txt",
                         'w', encoding='utf-8') as n:
                     n.write(regex_cleaners.deformat_cycle(topic)) # rawtext
-                print(f"Wrote notes to {NOTES_PATH+header}-NOTES-1{topics_counter:04}R/W.txt")
+                print(f"Wrote notes to {NOTES_PATH+header}-NOTES-{topics_counter:04}R/W.txt")
             topics_counter+=1
 
 def purge_folders(path, recursive=False):
@@ -202,6 +202,7 @@ def getallpageids() -> list[int]:
     pageids = [x["pageid"] for x in data["query"]["categorymembers"]]
     #print(len(pageids))
     #print(pageids)
+    print("Added the discussion and userpage ids to the return")
     return pageids + [secret_variables.DISCUSSION_ID, secret_variables.USERPAGE_ID]
 
 #pageids = getallpageids()
