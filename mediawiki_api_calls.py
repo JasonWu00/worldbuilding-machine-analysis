@@ -14,6 +14,7 @@ import requests
 #from bs4 import BeautifulSoup
 import secret_variables
 import regex_cleaners
+import pandas as pd
 
 API_ENDPOINT = secret_variables.WIKI_URL + "/w/api.php"
 SCRAPED_FILES_PATH = "pages/"
@@ -264,6 +265,10 @@ def get_recent_revisions():
     Get my most recent revisions as of the last 3 or 4 days. This lets me soft-update the datasets
     without rebuilding everything.
     """
+    revs_df = pd.read_csv("datasets/revisions_df.csv")
+    latest_date = pd.to_datetime(revs_df["Timestamp"]).max()
+    latest_date = latest_date.replace(" ", "T") + "Z"
+    # 2025-05-25 21:34:07 -> 2025-05-25T21:34:07Z to match MediaWiki timestamp formats
     params = {
         "action": "query",
         "format": "json",
@@ -271,7 +276,7 @@ def get_recent_revisions():
         "ucuser": secret_variables.USERNAME,
         #"prop": "revisions",
         #"rvprop": "ids|timestamp|flags|comment|user",
-        "ucend": "2025-05-20T00:00:00Z",
+        "ucend": latest_date,
         "uclimit": 100,
     }
     headers = {
