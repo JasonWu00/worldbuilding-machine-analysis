@@ -33,7 +33,7 @@ def compile_single_excel():
     Saves all three datasets into one Excel file.
     """
     dfs = []
-    writer = pd.ExcelWriter('datasets/combined_dataset.xlsx', engine='openpyxl')
+    writer = pd.ExcelWriter(DATASETS_PATH+'combined_dataset.xlsx', engine='openpyxl')
     sheetnames = ["Main Pages", "Discussion Notes", "Revisions"]
     i=0
     for dfname in ["main_pages_df", "discussion_notes_df", "revisions_df"]:
@@ -61,6 +61,14 @@ def altcat_cleanup(altcat: str) -> str:
     if "Blue Marble" in altcat: # a subcategory
         return "Subcategory"
     return altcat
+
+def pagename_cleanup(pagename: str) -> str:
+    """
+    Sanitizes page names.
+    """
+    if "User:" in pagename: # you do not need to know my MediaWiki username
+        return "Userpage"
+    return pagename
 
 def wordbytescount(pageid: int, isnotes: float = False) -> Tuple[int, int, float]:
     """

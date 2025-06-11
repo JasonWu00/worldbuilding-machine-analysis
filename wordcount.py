@@ -22,12 +22,13 @@ def count_all_textfiles(path: str):
     """
     count = 0
     for filename in os.listdir(path):
-        if ".txt" not in filename:
-            count += count_all_textfiles(path+filename+"/")
-        else:
-            with open(path + filename, 'r', encoding='utf-8') as f:
-                # no need to parse out wiki formatting b/c I already did that during api calling
-                count += len(f.read().strip().split(" "))
+        if "R.txt" not in filename:
+            #count += count_all_textfiles(path+filename+"/")
+            continue
+        #else:
+        with open(path + filename, 'r', encoding='utf-8') as f:
+            # no need to parse out wiki formatting b/c I already did that during api calling
+            count += len(f.read().strip().split(" "))
     return count
 
 mastercount = count_all_textfiles(SCRAPED_FILES_PATH)
