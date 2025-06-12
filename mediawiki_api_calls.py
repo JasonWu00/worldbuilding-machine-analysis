@@ -12,9 +12,9 @@ import re
 import requests
 # static variables that lead to where the source material is located at.
 #from bs4 import BeautifulSoup
+import pandas as pd
 import secret_variables
 import regex_cleaners
-import pandas as pd
 
 API_ENDPOINT = secret_variables.WIKI_URL + "/w/api.php"
 SCRAPED_FILES_PATH = "pages/"
@@ -262,8 +262,8 @@ def get_categories(pageid: int):
 # get detailed data on each page, including revisions.
 def get_recent_revisions():
     """
-    Get my most recent revisions as of the last 3 or 4 days. This lets me soft-update the datasets
-    without rebuilding everything.
+    Get my most recent revisions between the most recent pipelined edits and the time of running this script.
+    This lets me soft-update the datasets without rebuilding everything.
     """
     revs_df = pd.read_csv("datasets/revisions_df.csv")
     latest_date = pd.to_datetime(revs_df["Timestamp"]).max()
