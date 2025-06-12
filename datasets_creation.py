@@ -96,12 +96,13 @@ def produce_mainpages_df():
 
     pages_df["Last Edited Time"] = pd.to_datetime(pages_df["Last Edited Time"])
     pages_df["Last Edited Time"] = pages_df["Last Edited Time"] - pd.Timedelta(hours=5)
-    pages_df["Is Discussion Notes"] = pages_df["Page Name"].apply(lambda pagename: "Userpage" in pagename
+    pages_df["Is Discussion Notes"] = pages_df["Page Name"].apply(lambda pagename:
+                                                                  "Userpage" in pagename
                                                                   or "Category talk" in pagename)
     # manually set some categories
     for special_ids in [secret_variables.DISCUSSION_ID, secret_variables.USERPAGE_ID]:
         pages_df.loc[pages_df["Page ID"] == special_ids, "Other Category"] = "Documentation"
-    pages_df.to_csv(DATASETS_PATH+"main_pages_df.csv", index=False)
+    pages_df.drop("Page Name").to_csv(DATASETS_PATH+"main_pages_df.csv", index=False)
 
 def produce_notes_df():
     """
@@ -136,7 +137,7 @@ def produce_notes_df():
         noteswordlen.append(l)
 
     notes_df = pd.DataFrame({"Page ID": notesids,
-                            "Page Name": notenames,
+                            #"Page Name": notenames,
                             "Other Categories": notetypes,
                             "Word Count": noteswordcounts,
                             "Page Size (Bytes)": notesbytescounts,
